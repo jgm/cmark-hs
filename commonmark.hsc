@@ -29,24 +29,9 @@ data NodeType =
   | STRONG
   deriving Show
 
--- Flexible approach -- we can use this to generate HTML, text,
--- a structure like Pandoc, etc.  TODO:  make the function take
--- NodeType rather than a NodePtr, and add a NodePtr -> NodeType
--- conversion.
-handleNode :: (NodePtr -> [a] -> a) -> NodePtr -> a
-handleNode f ptr = f ptr children
-   where children = handleNodes f $ c_cmark_node_first_child ptr
-         handleNodes f ptr =
-           if ptr == nullPtr
-              then []
-              else handleNode f ptr : handleNodes f (c_cmark_node_next ptr)
-
-toNode :: NodePtr -> Node
-toNode = handleNode ptrToNode
-
-ptrToNode :: NodePtr -> [Node] -> Node
-ptrToNode ptr xs = Node z xs
-  where z = case (c_cmark_node_get_type ptr) of
+ptrToNodeType :: NodePtr -> NodeType
+ptrToNodeType ptr =
+  case (c_cmark_node_get_type ptr) of
              #const CMARK_NODE_DOCUMENT
                -> DOCUMENT
              #const CMARK_NODE_PARAGRAPH
@@ -59,8 +44,20 @@ ptrToNode ptr xs = Node z xs
                -> STRONG
              #const CMARK_NODE_TEXT
                -> TEXT string_content
-        string_content = unsafePerformIO $ peekCString $
+  where string_content = unsafePerformIO $ peekCString $
                          c_cmark_node_get_string_content ptr
+
+
+handleNode :: (NodeType -> [a] -> a) -> NodePtr -> a
+handleNode f ptr = f (ptrToNodeType ptr) children
+   where children = handleNodes f $ c_cmark_node_first_child ptr
+         handleNodes f ptr =
+           if ptr == nullPtr
+              then []
+              else handleNode f ptr : handleNodes f (c_cmark_node_next ptr)
+
+toNode :: NodePtr -> Node
+toNode = handleNode Node
 
 foreign import ccall "cmark.h cmark_markdown_to_html"
     c_cmark_markdown_to_html :: CString -> Int -> CString
