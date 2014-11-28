@@ -16,7 +16,7 @@ import System.IO.Unsafe
 
 type NodePtr = Ptr ()
 
-data Node = Node NodeType [Node]
+data Node = Node (Maybe PosInfo) NodeType [Node]
      deriving Show
 
 data NodeType =
@@ -28,6 +28,8 @@ data NodeType =
   | EMPH
   | STRONG
   deriving Show
+
+type PosInfo = Int -- for now
 
 ptrToNodeType :: NodePtr -> NodeType
 ptrToNodeType ptr =
@@ -48,9 +50,10 @@ ptrToNodeType ptr =
                          c_cmark_node_get_string_content ptr
 
 
-handleNode :: (NodeType -> [a] -> a) -> NodePtr -> a
-handleNode f ptr = f (ptrToNodeType ptr) children
+handleNode :: (Maybe PosInfo -> NodeType -> [a] -> a) -> NodePtr -> a
+handleNode f ptr = f posinfo (ptrToNodeType ptr) children
    where children = handleNodes f $ c_cmark_node_first_child ptr
+         posinfo = Nothing
          handleNodes f ptr =
            if ptr == nullPtr
               then []
