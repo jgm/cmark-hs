@@ -1,5 +1,4 @@
-{-# LANGUAGE CPP, ForeignFunctionInterface, GeneralizedNewtypeDeriving,
-    RankNTypes, ExistentialQuantification #-}
+{-# LANGUAGE CPP, ForeignFunctionInterface, GeneralizedNewtypeDeriving #-}
 
 module CommonMark (
     CommonMark
