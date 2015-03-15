@@ -14,6 +14,8 @@ import Foreign.C.String
 import qualified System.IO.Unsafe as Unsafe
 import GHC.Generics (Generic)
 import Data.Generics (Data, Typeable)
+import Data.Text (Text)
+import Data.Text.Foreign
 
 #include <cmark.h>
 
@@ -65,6 +67,9 @@ handleNode f ptr = f posinfo (ptrToNodeType ptr) children
 toNode :: NodePtr -> Node
 toNode = handleNode Node
 
+foreign import ccall "string.h strlen"
+    c_strlen :: CString -> Int
+
 foreign import ccall "cmark.h cmark_markdown_to_html"
     c_cmark_markdown_to_html :: CString -> Int -> CString
 
@@ -83,14 +88,15 @@ foreign import ccall "cmark.h cmark_node_next"
 foreign import ccall "cmark.h cmark_node_get_literal"
     c_cmark_node_get_literal :: NodePtr -> CString
 
-markdownToHtml :: String -> String
+markdownToHtml :: Text -> Text
 markdownToHtml s = Unsafe.unsafePerformIO $
-  withCStringLen s $ \(ptr, len) ->
-    peekCString $ c_cmark_markdown_to_html ptr len
+  Data.Text.Foreign.withCStringLen s $ \(ptr, len) -> do
+    let str = c_cmark_markdown_to_html ptr len
+    let len = c_strlen str
+    Data.Text.Foreign.peekCStringLen (str, len)
 
-parseDocument :: String -> Node
+parseDocument :: Text -> Node
 parseDocument s =
   Unsafe.unsafePerformIO $
-      withCStringLen s $ \(ptr, len) ->
+      Data.Text.Foreign.withCStringLen s $ \(ptr, len) ->
         return $ toNode $ c_cmark_parse_document ptr len
-
