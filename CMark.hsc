@@ -11,12 +11,12 @@ module CMark (
 
 import Foreign
 import Foreign.C.Types
-import Foreign.C.String
+import Foreign.C.String (CString)
 import qualified System.IO.Unsafe as Unsafe
 import GHC.Generics (Generic)
 import Data.Generics (Data, Typeable)
 import Data.Text (Text)
-import Data.Text.Foreign
+import qualified Data.Text.Foreign as TF
 
 #include <cmark.h>
 
@@ -30,7 +30,7 @@ data NodeType =
   | PARAGRAPH
   | BLOCK_QUOTE
   | HEADER Int
-  | TEXT String
+  | TEXT Text
   | EMPH
   | STRONG
   deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
@@ -52,8 +52,9 @@ ptrToNodeType ptr =
                -> STRONG
              #const CMARK_NODE_TEXT
                -> TEXT string_content
-  where string_content = Unsafe.unsafePerformIO $ peekCString $
-                         c_cmark_node_get_literal ptr
+  where string_content = Unsafe.unsafePerformIO $
+                            TF.peekCStringLen (str, c_strlen str)
+        str            = c_cmark_node_get_literal ptr
 
 
 handleNode :: (Maybe PosInfo -> NodeType -> [a] -> a) -> NodePtr -> a
@@ -91,13 +92,13 @@ foreign import ccall "cmark.h cmark_node_get_literal"
 
 markdownToHtml :: Text -> Text
 markdownToHtml s = Unsafe.unsafePerformIO $
-  Data.Text.Foreign.withCStringLen s $ \(ptr, len) -> do
+  TF.withCStringLen s $ \(ptr, len) -> do
     let str = c_cmark_markdown_to_html ptr len
     let len = c_strlen str
-    Data.Text.Foreign.peekCStringLen (str, len)
+    TF.peekCStringLen (str, len)
 
 parseDocument :: Text -> Node
 parseDocument s =
   Unsafe.unsafePerformIO $
-      Data.Text.Foreign.withCStringLen s $ \(ptr, len) ->
+      TF.withCStringLen s $ \(ptr, len) ->
         return $ toNode $ c_cmark_parse_document ptr len
