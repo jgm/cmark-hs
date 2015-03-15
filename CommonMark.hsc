@@ -10,7 +10,6 @@ module CommonMark (
 import Foreign
 import Foreign.C.Types
 import Foreign.C.String
-import System.IO.Unsafe
 
 #include <cmark.h>
 
@@ -47,7 +46,7 @@ ptrToNodeType ptr =
              #const CMARK_NODE_TEXT
                -> TEXT string_content
   where string_content = unsafePerformIO $ peekCString $
-                         c_cmark_node_get_string_content ptr
+                         c_cmark_node_get_literal ptr
 
 
 handleNode :: (Maybe PosInfo -> NodeType -> [a] -> a) -> NodePtr -> a
@@ -77,8 +76,8 @@ foreign import ccall "cmark.h cmark_node_first_child"
 foreign import ccall "cmark.h cmark_node_next"
     c_cmark_node_next :: NodePtr -> NodePtr
 
-foreign import ccall "cmark.h cmark_node_get_string_content"
-    c_cmark_node_get_string_content :: NodePtr -> CString
+foreign import ccall "cmark.h cmark_node_get_literal"
+    c_cmark_node_get_literal :: NodePtr -> CString
 
 markdownToHtml :: String -> String
 markdownToHtml s = unsafePerformIO $
