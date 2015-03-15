@@ -6,7 +6,7 @@ version:             0.1.0.0
 synopsis:            Haskell bindings to libcmark, CommonMark parser and renderer
 -- description:         
 homepage:            https://github.com/jgm/commonmark-hs
-license:             BSD3
+license:             BSD2
 license-file:        LICENSE
 author:              John MacFarlane
 maintainer:          jgm@berkeley.edu
