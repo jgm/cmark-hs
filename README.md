@@ -1,5 +1,5 @@
-commonmark-hs
-=============
+cmark-hs
+========
 
 Haskell bindings to libcmark commonmark parser
 

@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP, ForeignFunctionInterface, GeneralizedNewtypeDeriving #-}
 
-module CommonMark (
+module CMark (
     Node
   , NodeType
   , markdownToHtml
@@ -10,6 +10,7 @@ module CommonMark (
 import Foreign
 import Foreign.C.Types
 import Foreign.C.String
+import qualified System.IO.Unsafe as Unsafe
 
 #include <cmark.h>
 
@@ -45,7 +46,7 @@ ptrToNodeType ptr =
                -> STRONG
              #const CMARK_NODE_TEXT
                -> TEXT string_content
-  where string_content = unsafePerformIO $ peekCString $
+  where string_content = Unsafe.unsafePerformIO $ peekCString $
                          c_cmark_node_get_literal ptr
 
 
@@ -80,13 +81,13 @@ foreign import ccall "cmark.h cmark_node_get_literal"
     c_cmark_node_get_literal :: NodePtr -> CString
 
 markdownToHtml :: String -> String
-markdownToHtml s = unsafePerformIO $
+markdownToHtml s = Unsafe.unsafePerformIO $
   withCStringLen s $ \(ptr, len) ->
     peekCString $ c_cmark_markdown_to_html ptr len
 
 parseDocument :: String -> Node
 parseDocument s =
-  unsafePerformIO $
+  Unsafe.unsafePerformIO $
       withCStringLen s $ \(ptr, len) ->
         return $ toNode $ c_cmark_parse_document ptr len
 
