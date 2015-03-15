@@ -4,6 +4,7 @@
 module CMark (
     Node
   , NodeType
+  , PosInfo
   , markdownToHtml
   , parseDocument
   ) where
