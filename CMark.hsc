@@ -1,4 +1,5 @@
-{-# LANGUAGE CPP, ForeignFunctionInterface, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE CPP, ForeignFunctionInterface, GeneralizedNewtypeDeriving,
+    DeriveGeneric, DeriveDataTypeable, FlexibleContexts #-}
 
 module CMark (
     Node
@@ -11,13 +12,15 @@ import Foreign
 import Foreign.C.Types
 import Foreign.C.String
 import qualified System.IO.Unsafe as Unsafe
+import GHC.Generics (Generic)
+import Data.Generics (Data, Typeable)
 
 #include <cmark.h>
 
 type NodePtr = Ptr ()
 
 data Node = Node (Maybe PosInfo) NodeType [Node]
-     deriving Show
+     deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
 data NodeType =
     DOCUMENT
@@ -27,7 +30,7 @@ data NodeType =
   | TEXT String
   | EMPH
   | STRONG
-  deriving Show
+  deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
 type PosInfo = Int -- for now
 
