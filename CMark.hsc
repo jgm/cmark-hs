@@ -73,10 +73,10 @@ foreign import ccall "string.h strlen"
     c_strlen :: CString -> Int
 
 foreign import ccall "cmark.h cmark_markdown_to_html"
-    c_cmark_markdown_to_html :: CString -> Int -> CString
+    c_cmark_markdown_to_html :: CString -> Int -> Int -> CString
 
 foreign import ccall "cmark.h cmark_parse_document"
-    c_cmark_parse_document :: CString -> Int -> NodePtr
+    c_cmark_parse_document :: CString -> Int -> Int -> NodePtr
 
 foreign import ccall "cmark.h cmark_node_get_type"
     c_cmark_node_get_type :: NodePtr -> Int
@@ -93,7 +93,7 @@ foreign import ccall "cmark.h cmark_node_get_literal"
 markdownToHtml :: Text -> Text
 markdownToHtml s = Unsafe.unsafePerformIO $
   TF.withCStringLen s $ \(ptr, len) -> do
-    let str = c_cmark_markdown_to_html ptr len
+    let str = c_cmark_markdown_to_html ptr len 0
     let len = c_strlen str
     TF.peekCStringLen (str, len)
 
@@ -101,4 +101,4 @@ parseDocument :: Text -> Node
 parseDocument s =
   Unsafe.unsafePerformIO $
       TF.withCStringLen s $ \(ptr, len) ->
-        return $ toNode $ c_cmark_parse_document ptr len
+        return $ toNode $ c_cmark_parse_document ptr len 0
