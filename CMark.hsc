@@ -20,7 +20,7 @@ import qualified System.IO.Unsafe as Unsafe
 import GHC.Generics (Generic)
 import Data.Generics (Data, Typeable)
 import Data.Bits ( (.|.) )
-import Data.Text (Text, pack)
+import Data.Text (Text, pack, empty)
 import qualified Data.Text.Foreign as TF
 
 #include <cmark.h>
@@ -72,7 +72,12 @@ data NodeType =
   | IMAGE Url Title
   deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
-type PosInfo = Int -- for now
+data PosInfo = PosInfo{ startLine   :: Int
+                      , startColumn :: Int
+                      , endLine     :: Int
+                      , endColumn   :: Int
+                      }
+  deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
 -- | A type for PCRE compile-time options. These are newtyped CInts,
 -- which can be bitwise-or'd together, using '(Data.Bits..|.)'
@@ -152,12 +157,24 @@ ptrToNodeType ptr =
                          _                           -> LOOSE
         url       = peekCString $ c_cmark_node_get_url ptr
         title     = peekCString $ c_cmark_node_get_title ptr
-        info      = peekCString $ c_cmark_node_get_info_string ptr
+        info      = peekCString $ c_cmark_node_get_fence_info ptr
+
+getPosInfo :: NodePtr -> Maybe PosInfo
+getPosInfo ptr =
+   case (c_cmark_node_get_start_line ptr,
+         c_cmark_node_get_start_column ptr,
+         c_cmark_node_get_end_line ptr,
+         c_cmark_node_get_end_column ptr) of
+       (0, 0, 0, 0) -> Nothing
+       (sl, sc, el, ec) -> Just PosInfo{ startLine = sl
+                                       , startColumn = sc
+                                       , endLine = el
+                                       , endColumn = ec }
 
 handleNode :: (Maybe PosInfo -> NodeType -> [a] -> a) -> NodePtr -> a
 handleNode f ptr = f posinfo (ptrToNodeType ptr) children
    where children = handleNodes f $ c_cmark_node_first_child ptr
-         posinfo = Nothing
+         posinfo  = getPosInfo ptr
          handleNodes f ptr =
            if ptr == nullPtr
               then []
@@ -205,8 +222,20 @@ foreign import ccall "cmark.h cmark_node_get_list_tight"
 foreign import ccall "cmark.h cmark_node_get_list_delim"
     c_cmark_node_get_list_delim :: NodePtr -> Int
 
-foreign import ccall "cmark.h cmark_node_get_info_string"
-    c_cmark_node_get_info_string :: NodePtr -> CString
+foreign import ccall "cmark.h cmark_node_get_fence_info"
+    c_cmark_node_get_fence_info :: NodePtr -> CString
+
+foreign import ccall "cmark.h cmark_node_get_start_line"
+    c_cmark_node_get_start_line :: NodePtr -> Int
+
+foreign import ccall "cmark.h cmark_node_get_start_column"
+    c_cmark_node_get_start_column :: NodePtr -> Int
+
+foreign import ccall "cmark.h cmark_node_get_end_line"
+    c_cmark_node_get_end_line :: NodePtr -> Int
+
+foreign import ccall "cmark.h cmark_node_get_end_column"
+    c_cmark_node_get_end_column :: NodePtr -> Int
 
 markdownToHtml :: [CMarkOption] -> Text -> Text
 markdownToHtml opts s = io $
@@ -222,4 +251,6 @@ io :: IO a -> a
 io = Unsafe.unsafePerformIO
 
 peekCString :: CString -> Text
-peekCString str = io $ TF.peekCStringLen (str, c_strlen str)
+peekCString str
+  | str == nullPtr = empty
+  | otherwise      = io $ TF.peekCStringLen (str, c_strlen str)
