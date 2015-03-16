@@ -97,12 +97,15 @@ extra-source-files:  README.md
                      cmark/case_fold_switch.inc
 cabal-version:       >=1.10
 
+Source-repository head
+  type:              git
+  location:          git://github.com/jgm/cmark-hs.git
+
 library
   exposed-modules:     CMark
   build-depends:       base >=4.6 && < 4.8, mtl, syb, text >= 1.1 && < 1.3
   default-language:    Haskell2010
   ghc-options:         -Wall
-  cc-options:          -O3
   Include-dirs:        cmark
   Includes:            cmark.h
   c-sources:           cmark/houdini_html_u.c
