@@ -5,7 +5,7 @@ This package provides Haskell bindings for [libcmark], the reference
 parser for [CommonMark].  It includes sources for [libcmark], and
 does not require prior installation of the C library.
 
-cmark-hs provides the following advantages over existing Markdown
+cmark provides the following advantages over existing Markdown
 libraries for Haskell:
 
   - **Speed:**  Conversion speed is on par with the [sundown] library:
@@ -17,16 +17,16 @@ libraries for Haskell:
     On one sample, the library uses a fourth the memory that [markdown]
     uses, and less than a tenth the memory that [pandoc] uses.
 
-  - **Robustness:**  cmark-hs can handle whatever is thrown at it,
+  - **Robustness:**  cmark can handle whatever is thrown at it,
     without the exponential blowups in parsing time one can sometimes
     get with other libraries.  For example, the input produced by
     this command will tie [markdown] and [pandoc] in knots:
 
         python -c "print ((500 * '[') + 'hi' + (500 * ']') + '(url)')"
 
-    cmark-hs handles it easily, with no slowdown.
+    cmark handles it easily, with no slowdown.
 
-  - **Accuracy:**  cmark-hs passes the CommonMark spec's suite of over
+  - **Accuracy:**  cmark passes the CommonMark spec's suite of over
     500 conformance tests.
 
   - **Standardization:**  Since there is a spec and a comprehensive suite
@@ -35,9 +35,9 @@ libraries for Haskell:
     example, one could use this library for server-side rendering
     and [commonmark.js] for client-side previewing.
 
-  - **Ease of installation:** cmark-hs has minimal dependencies.
+  - **Ease of installation:** cmark has minimal dependencies.
 
-cmark-hs does not provide Haskell versions of the whole [libcmark]
+cmark does not provide Haskell versions of the whole [libcmark]
 API, which is built around mutable `cmark_node` objects.  Instead, it
 provides two functions:
 
