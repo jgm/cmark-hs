@@ -63,6 +63,9 @@ description:
   output. We recommend using
   <https://hackage.haskell.org/package/xss-sanitize xss-sanitize> to
   filter the output.
+  .
+  __A note on stability:__ There is a good chance the API will change
+  significantly after this early release.
 
 homepage:            https://github.com/jgm/commonmark-hs
 license:             BSD2

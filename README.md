@@ -65,6 +65,9 @@ provides two functions:
 **A note on security:**  This library does not attempt to sanitize
 HTML output.  We recommend using [xss-sanitize] to filter the output.
 
+**A note on stability:**  There is a good chance the API will change
+significantly after this early release.
+
 [CommonMark]: http://commonmark.org
 [libcmark]: http://github.com/jgm/cmark
 [benchmarks]: https://github.com/jgm/cmark/blob/master/benchmarks.md
