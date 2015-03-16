@@ -68,7 +68,7 @@ description:
   significantly after this early release.
 
 homepage:            https://github.com/jgm/commonmark-hs
-license:             BSD2
+license:             BSD3
 license-file:        LICENSE
 author:              John MacFarlane
 maintainer:          jgm@berkeley.edu
