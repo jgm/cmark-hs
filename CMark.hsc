@@ -30,15 +30,42 @@ type NodePtr = Ptr ()
 data Node = Node (Maybe PosInfo) NodeType [Node]
      deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
+data DelimType =
+    PERIOD_DELIM
+  | BULLET_DELIM
+  deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
+
+data ListType =
+    BULLET_LIST
+  | ORDERED_LIST
+  deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
+
+type Url = Text
+
+type Title = Text
+
+type Level = Int
+
+data Tightness = TIGHT | LOOSE
+  deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
+
 data NodeType =
     DOCUMENT
   | HRULE
   | PARAGRAPH
   | BLOCK_QUOTE
-  | HEADER Int
+  | HTML Text
+  | CODE_BLOCK Text
+  | HEADER Level
   | TEXT Text
+  | ITEM
+  | LIST ListType Tightness
+  | INLINE_HTML Text
+  | CODE Text
   | EMPH
   | STRONG
+  | LINK Url Title
+  | IMAGE Url Title
   | SOFTBREAK
   | LINEBREAK
   deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
