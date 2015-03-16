@@ -20,7 +20,7 @@ import qualified System.IO.Unsafe as Unsafe
 import GHC.Generics (Generic)
 import Data.Generics (Data, Typeable)
 import Data.Bits ( (.|.) )
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import qualified Data.Text.Foreign as TF
 
 #include <cmark.h>
@@ -32,7 +32,7 @@ data Node = Node (Maybe PosInfo) NodeType [Node]
 
 data DelimType =
     PERIOD_DELIM
-  | BULLET_DELIM
+  | PAREN_DELIM
   deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
 data ListType =
@@ -46,6 +46,8 @@ type Title = Text
 
 type Level = Int
 
+type Info = Text
+
 data Tightness = TIGHT | LOOSE
   deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
@@ -55,19 +57,19 @@ data NodeType =
   | PARAGRAPH
   | BLOCK_QUOTE
   | HTML Text
-  | CODE_BLOCK Text
+  | CODE_BLOCK Info Text
   | HEADER Level
-  | TEXT Text
-  | ITEM
   | LIST ListType Tightness
+  | ITEM
+  | TEXT Text
+  | SOFTBREAK
+  | LINEBREAK
   | INLINE_HTML Text
   | CODE Text
   | EMPH
   | STRONG
   | LINK Url Title
   | IMAGE Url Title
-  | SOFTBREAK
-  | LINEBREAK
   deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
 type PosInfo = Int -- for now
@@ -107,19 +109,50 @@ ptrToNodeType ptr =
                -> PARAGRAPH
              #const CMARK_NODE_BLOCK_QUOTE
                -> BLOCK_QUOTE
+             #const CMARK_NODE_HTML
+               -> HTML literal
+             #const CMARK_NODE_CODE_BLOCK
+               -> CODE_BLOCK info literal
+             #const CMARK_NODE_LIST
+               -> LIST listType tightness
+             #const CMARK_NODE_ITEM
+               -> ITEM
+             #const CMARK_NODE_HEADER
+               -> HEADER level
              #const CMARK_NODE_EMPH
                -> EMPH
              #const CMARK_NODE_STRONG
                -> STRONG
+             #const CMARK_NODE_LINK
+               -> LINK url title
+             #const CMARK_NODE_IMAGE
+               -> IMAGE url title
              #const CMARK_NODE_TEXT
-               -> TEXT string_content
+               -> TEXT literal
+             #const CMARK_NODE_CODE
+               -> CODE literal
+             #const CMARK_NODE_INLINE_HTML
+               -> INLINE_HTML literal
              #const CMARK_NODE_SOFTBREAK
                -> SOFTBREAK
              #const CMARK_NODE_LINEBREAK
                -> LINEBREAK
-  where string_content = Unsafe.unsafePerformIO $
-                            TF.peekCStringLen (str, c_strlen str)
-        str            = c_cmark_node_get_literal ptr
+  where literal   = peekCString $ c_cmark_node_get_literal ptr
+        level     = c_cmark_node_get_header_level ptr
+        listType  = case c_cmark_node_get_list_type ptr of
+                         (#const CMARK_ORDERED_LIST) -> ORDERED_LIST
+                         (#const CMARK_BULLET_LIST)  -> BULLET_LIST
+                         _                           -> BULLET_LIST
+        delimType  = case c_cmark_node_get_list_delim ptr of
+                         (#const CMARK_PERIOD_DELIM) -> PERIOD_DELIM
+                         (#const CMARK_PAREN_DELIM)  -> PAREN_DELIM
+                         _                           -> PERIOD_DELIM
+        tightness = case c_cmark_node_get_list_type ptr of
+                         1                           -> TIGHT
+                         _                           -> LOOSE
+        url       = peekCString $ c_cmark_node_get_url ptr
+        title     = peekCString $ c_cmark_node_get_title ptr
+        info      = peekCString $ c_cmark_node_get_info_string ptr
 
 handleNode :: (Maybe PosInfo -> NodeType -> [a] -> a) -> NodePtr -> a
 handleNode f ptr = f posinfo (ptrToNodeType ptr) children
@@ -154,15 +187,39 @@ foreign import ccall "cmark.h cmark_node_next"
 foreign import ccall "cmark.h cmark_node_get_literal"
     c_cmark_node_get_literal :: NodePtr -> CString
 
+foreign import ccall "cmark.h cmark_node_get_url"
+    c_cmark_node_get_url :: NodePtr -> CString
+
+foreign import ccall "cmark.h cmark_node_get_title"
+    c_cmark_node_get_title :: NodePtr -> CString
+
+foreign import ccall "cmark.h cmark_node_get_header_level"
+    c_cmark_node_get_header_level :: NodePtr -> Int
+
+foreign import ccall "cmark.h cmark_node_get_list_type"
+    c_cmark_node_get_list_type :: NodePtr -> Int
+
+foreign import ccall "cmark.h cmark_node_get_list_tight"
+    c_cmark_node_get_list_tight :: NodePtr -> Int
+
+foreign import ccall "cmark.h cmark_node_get_list_delim"
+    c_cmark_node_get_list_delim :: NodePtr -> Int
+
+foreign import ccall "cmark.h cmark_node_get_info_string"
+    c_cmark_node_get_info_string :: NodePtr -> CString
+
 markdownToHtml :: [CMarkOption] -> Text -> Text
-markdownToHtml opts s = Unsafe.unsafePerformIO $
-  TF.withCStringLen s $ \(ptr, len) -> do
-    let str = c_cmark_markdown_to_html ptr len (combineOptions opts)
-    let len = c_strlen str
-    TF.peekCStringLen (str, len)
+markdownToHtml opts s = io $
+  TF.withCStringLen s $ \(ptr, len) ->
+    return (peekCString $ c_cmark_markdown_to_html ptr len (combineOptions opts))
 
 parseDocument :: [CMarkOption] -> Text -> Node
-parseDocument opts s =
-  Unsafe.unsafePerformIO $
+parseDocument opts s = io $
       TF.withCStringLen s $ \(ptr, len) ->
         return $ toNode $ c_cmark_parse_document ptr len (combineOptions opts)
+
+io :: IO a -> a
+io = Unsafe.unsafePerformIO
+
+peekCString :: CString -> Text
+peekCString str = io $ TF.peekCStringLen (str, c_strlen str)
