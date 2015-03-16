@@ -7,6 +7,10 @@ module CMark (
   , PosInfo
   , markdownToHtml
   , parseDocument
+  , optSourcePos
+  , optNormalize
+  , optHardBreaks
+  , optSmart
   ) where
 
 import Foreign
@@ -15,6 +19,7 @@ import Foreign.C.String (CString)
 import qualified System.IO.Unsafe as Unsafe
 import GHC.Generics (Generic)
 import Data.Generics (Data, Typeable)
+import Data.Bits ( (.|.) )
 import Data.Text (Text)
 import qualified Data.Text.Foreign as TF
 
@@ -36,6 +41,30 @@ data NodeType =
   deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
 type PosInfo = Int -- for now
+
+-- | A type for PCRE compile-time options. These are newtyped CInts,
+-- which can be bitwise-or'd together, using '(Data.Bits..|.)'
+newtype CMarkOption = CMarkOption { unCMarkOption :: CInt }
+
+-- | Combine a list of options into a single option, using bitwise or.
+combineOptions :: [CMarkOption] -> CInt
+combineOptions = foldr ((.|.) . unCMarkOption) 0
+
+-- Include a @data-sourcepos@ attribute on block elements.
+optSourcePos :: CMarkOption
+optSourcePos = CMarkOption #const CMARK_OPT_SOURCEPOS
+
+-- Render @softbreak@ elements as hard line breaks.
+optHardBreaks :: CMarkOption
+optHardBreaks = CMarkOption #const CMARK_OPT_HARDBREAKS
+
+-- Normalize the document by consolidating adjacent text nodes.
+optNormalize :: CMarkOption
+optNormalize = CMarkOption #const CMARK_OPT_NORMALIZE
+
+-- Convert straight quotes to curly, @---@ to em-dash, @--@ to en-dash.
+optSmart :: CMarkOption
+optSmart = CMarkOption #const CMARK_OPT_SMART
 
 ptrToNodeType :: NodePtr -> NodeType
 ptrToNodeType ptr =
@@ -73,10 +102,10 @@ foreign import ccall "string.h strlen"
     c_strlen :: CString -> Int
 
 foreign import ccall "cmark.h cmark_markdown_to_html"
-    c_cmark_markdown_to_html :: CString -> Int -> Int -> CString
+    c_cmark_markdown_to_html :: CString -> Int -> CInt -> CString
 
 foreign import ccall "cmark.h cmark_parse_document"
-    c_cmark_parse_document :: CString -> Int -> Int -> NodePtr
+    c_cmark_parse_document :: CString -> Int -> CInt -> NodePtr
 
 foreign import ccall "cmark.h cmark_node_get_type"
     c_cmark_node_get_type :: NodePtr -> Int
@@ -90,15 +119,15 @@ foreign import ccall "cmark.h cmark_node_next"
 foreign import ccall "cmark.h cmark_node_get_literal"
     c_cmark_node_get_literal :: NodePtr -> CString
 
-markdownToHtml :: Text -> Text
-markdownToHtml s = Unsafe.unsafePerformIO $
+markdownToHtml :: [CMarkOption] -> Text -> Text
+markdownToHtml opts s = Unsafe.unsafePerformIO $
   TF.withCStringLen s $ \(ptr, len) -> do
-    let str = c_cmark_markdown_to_html ptr len 0
+    let str = c_cmark_markdown_to_html ptr len (combineOptions opts)
     let len = c_strlen str
     TF.peekCStringLen (str, len)
 
-parseDocument :: Text -> Node
-parseDocument s =
+parseDocument :: [CMarkOption] -> Text -> Node
+parseDocument opts s =
   Unsafe.unsafePerformIO $
       TF.withCStringLen s $ \(ptr, len) ->
-        return $ toNode $ c_cmark_parse_document ptr len 0
+        return $ toNode $ c_cmark_parse_document ptr len (combineOptions opts)
