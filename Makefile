@@ -13,6 +13,12 @@ install:
 clean:
 	cabal clean
 
+bench:
+	cabal configure --enable-benchmarks && \
+	cabal install --only-dependencies && \
+	cabal build && \
+	cabal bench
+
 update-c-sources: $(C_SOURCES)
 
 cmark/config.h: $(CMARK_DIR)/build/src/config.h
