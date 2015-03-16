@@ -2,16 +2,19 @@ cmark-hs
 ========
 
 This package provides Haskell bindings for [libcmark], the reference
-parser for [CommonMark].  It includes sources for [libcmark], and
-does not require prior installation of the C library.
+parser for [CommonMark], a fully specified variant of Markdown.
+It includes sources for [libcmark] (version 0.18.1) and does not
+require prior installation of the C library.
 
 cmark provides the following advantages over existing Markdown
 libraries for Haskell:
 
-  - **Speed:**  Conversion speed is on par with the [sundown] library:
-    about 30 times faster than [pandoc], 24 times
-    faster than the Haskell [markdown] package, 8 times faster than
-    [cheapskate].
+  - **Speed:**  Conversion speed is on par with the [sundown] library.
+    We were unable to measure precisely against [sundown], which
+    raised a malloc error when compiled into our benchmark suite.
+    Relative to other implementations: cmark was 82 times faster than
+    [cheapskate], 59 times faster than [markdown], 105 times faster
+    than [pandoc], and 2.8 times faster than [discount].
 
   - **Memory footprint:**  Memory footprint is on par with [sundown].
     On one sample, the library uses a fourth the memory that [markdown]
@@ -19,12 +22,8 @@ libraries for Haskell:
 
   - **Robustness:**  cmark can handle whatever is thrown at it,
     without the exponential blowups in parsing time one can sometimes
-    get with other libraries.  For example, the input produced by
-    this command will tie [markdown] and [pandoc] in knots:
-
-        python -c "print ((500 * '[') + 'hi' + (500 * ']') + '(url)')"
-
-    cmark handles it easily, with no slowdown.
+    get with other libraries.  (The input `bench/full-sample.md`,
+    for example, causes both [pandoc] and [markdown] to grind to a halt.)
 
   - **Accuracy:**  cmark passes the CommonMark spec's suite of over
     500 conformance tests.
@@ -35,32 +34,14 @@ libraries for Haskell:
     example, one could use this library for server-side rendering
     and [commonmark.js] for client-side previewing.
 
-  - **Ease of installation:** cmark has minimal dependencies.
+  - **Ease of installation:** cmark is portable and has minimal
+    dependencies.
 
 cmark does not provide Haskell versions of the whole [libcmark]
 API, which is built around mutable `cmark_node` objects.  Instead, it
-provides two functions:
-
-  - `markdownToHtml` uses [libcmark]'s parser and renderer for a
-    maximally efficient conversion of CommonMark to HTML (as a Text).
-    ("Smart punctuation" and a few other options can be enabled.)
-
-    ``` haskell
-    Prelude CMark Data.Text> markdownToHtml [optSmart] (pack "dog's *breakfast*")
-    "<p>dog\8217s <em>breakfast</em></p>\n"
-    ```
-
-  - `parseDocument` uses [libcmark]'s parser to produce a `Node` tree
-    that can be processed further using Haskell.  One can transform
-    the tree using generics, convert it to another kind of
-    structure (such as a Pandoc object that can be rendered using
-    pandoc's renderers) or render it using a custom rendering
-    function.
-
-    ``` haskell
-    Prelude CMark Data.Text> parseDocument  [optSmart] (pack "dog's *breakfast*")
-    Node (Just (PosInfo {startLine = 1, startColumn = 1, endLine = 1, endColumn = 17})) DOCUMENT [Node (Just (PosInfo {startLine = 1, startColumn = 1, endLine = 1, endColumn = 17})) PARAGRAPH [Node Nothing (TEXT "dog") [],Node Nothing (TEXT "\8217") [],Node Nothing (TEXT "s ") [],Node Nothing EMPH [Node Nothing (TEXT "breakfast") []]]]
-    ```
+provides functions for converting CommonMark to HTML (and other
+formats), and a function for converting CommonMark to a `Node`
+tree that can be processed further using Haskell.
 
 **A note on security:**  This library does not attempt to sanitize
 HTML output.  We recommend using [xss-sanitize] to filter the output.
@@ -77,3 +58,4 @@ significantly after this early release.
 [markdown]: https://hackage.haskell.org/package/markdown
 [commonmark.js]: http://github.com/jgm/commonmark.js
 [xss-sanitize]: https://hackage.haskell.org/package/xss-sanitize
+[discount]: https://hackage.haskell.org/package/discount

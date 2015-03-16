@@ -2,7 +2,15 @@
     DeriveGeneric, DeriveDataTypeable, FlexibleContexts #-}
 
 module CMark (
-    Node(..)
+    commonmarkToHtml
+  , commonmarkToXml
+  , commonmarkToMan
+  , commonmarkToNode
+  , optSourcePos
+  , optNormalize
+  , optHardBreaks
+  , optSmart
+  , Node(..)
   , NodeType(..)
   , PosInfo(..)
   , DelimType(..)
@@ -13,12 +21,6 @@ module CMark (
   , Level
   , Info
   , CMarkOption
-  , markdownToHtml
-  , parseDocument
-  , optSourcePos
-  , optNormalize
-  , optHardBreaks
-  , optSmart
   ) where
 
 import Foreign
@@ -197,6 +199,12 @@ foreign import ccall "string.h strlen"
 foreign import ccall "cmark.h cmark_markdown_to_html"
     c_cmark_markdown_to_html :: CString -> Int -> CInt -> CString
 
+foreign import ccall "cmark.h cmark_render_xml"
+    c_cmark_render_xml :: NodePtr -> CInt -> CString
+
+foreign import ccall "cmark.h cmark_render_man"
+    c_cmark_render_man :: NodePtr -> CInt -> CString
+
 foreign import ccall "cmark.h cmark_parse_document"
     c_cmark_parse_document :: CString -> Int -> CInt -> NodePtr
 
@@ -247,15 +255,33 @@ foreign import ccall "cmark.h cmark_node_get_end_column"
 
 -- | Convert CommonMark formatted text to Html, using cmark's
 -- built-in renderer.
-markdownToHtml :: [CMarkOption] -> Text -> Text
-markdownToHtml opts s = io $
+commonmarkToHtml :: [CMarkOption] -> Text -> Text
+commonmarkToHtml opts s = io $
   TF.withCStringLen s $ \(ptr, len) ->
     return (peekCString $ c_cmark_markdown_to_html ptr len (combineOptions opts))
 
+-- | Convert CommonMark formatted text to CommonMark XML, using cmark's
+-- built-in renderer.
+commonmarkToXml :: [CMarkOption] -> Text -> Text
+commonmarkToXml opts s = io $
+  TF.withCStringLen s $ \(ptr, len) -> do
+    let opts' = combineOptions opts
+    let doc = c_cmark_parse_document ptr len opts'
+    return (peekCString $ c_cmark_render_xml doc opts')
+
+-- | Convert CommonMark formatted text to groff man, using cmark's
+-- built-in renderer.
+commonmarkToMan :: [CMarkOption] -> Text -> Text
+commonmarkToMan opts s = io $
+  TF.withCStringLen s $ \(ptr, len) -> do
+    let opts' = combineOptions opts
+    let doc = c_cmark_parse_document ptr len opts'
+    return (peekCString $ c_cmark_render_man doc opts')
+
 -- | Convert CommonMark formatted text to a structured 'Node' tree,
 -- which can be transformed or rendered using Haskell code.
-parseDocument :: [CMarkOption] -> Text -> Node
-parseDocument opts s = io $
+commonmarkToNode :: [CMarkOption] -> Text -> Node
+commonmarkToNode opts s = io $
       TF.withCStringLen s $ \(ptr, len) ->
         return $ toNode $ c_cmark_parse_document ptr len (combineOptions opts)
 
