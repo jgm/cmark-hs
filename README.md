@@ -19,8 +19,8 @@ libraries for Haskell:
 
   - **Robustness:**  cmark-hs can handle whatever is thrown at it,
     without the exponential blowups in parsing time one can sometimes
-    get with other libraries.  For example, the following input will
-    tie [markdown] and [pandoc] in knots:
+    get with other libraries.  For example, the input produced by
+    this command will tie [markdown] and [pandoc] in knots:
 
         python -c "print ((500 * '[') + 'hi' + (500 * ']') + '(url)')"
 
