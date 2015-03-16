@@ -1,4 +1,4 @@
-C_SOURCES=$(wildcard cmark/*.*)
+C_SOURCES=$(wildcard cbits/*.*)
 CMARK_DIR=../cmark
 
 build:
@@ -21,16 +21,16 @@ bench:
 
 update-c-sources: $(C_SOURCES)
 
-cmark/config.h: $(CMARK_DIR)/build/src/config.h
+cbits/config.h: $(CMARK_DIR)/build/src/config.h
 	cp $< $@
 
-cmark/cmark_export.h: $(CMARK_DIR)/build/src/cmark_export.h
+cbits/cmark_export.h: $(CMARK_DIR)/build/src/cmark_export.h
 	cp $< $@
 
-cmark/cmark_version.h: $(CMARK_DIR)/build/src/cmark_version.h
+cbits/cmark_version.h: $(CMARK_DIR)/build/src/cmark_version.h
 	cp $< $@
 
-cmark/%: $(CMARK_DIR)/src/%
+cbits/%: $(CMARK_DIR)/src/%
 	cp $< $@
 
 .PHONY: build prep install test clean bench update-cmark
