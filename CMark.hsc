@@ -88,8 +88,6 @@ data PosInfo = PosInfo{ startLine   :: Int
                       }
   deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
--- | A type for PCRE compile-time options. These are newtyped CInts,
--- which can be bitwise-or'd together, using '(Data.Bits..|.)'
 newtype CMarkOption = CMarkOption { unCMarkOption :: CInt }
 
 -- | Combine a list of options into a single option, using bitwise or.
