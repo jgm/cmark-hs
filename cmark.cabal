@@ -1,5 +1,5 @@
 name:                cmark
-version:             0.1.0.0
+version:             0.1.0.1
 synopsis:            Haskell bindings to libcmark, CommonMark parser and renderer
 description:
   This package provides Haskell bindings for

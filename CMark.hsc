@@ -27,8 +27,7 @@ import Foreign.C.String (CString)
 import qualified System.IO.Unsafe as Unsafe
 import GHC.Generics (Generic)
 import Data.Generics (Data, Typeable)
-import Data.Bits ( (.|.) )
-import Data.Text (Text, pack, empty)
+import Data.Text (Text, empty)
 import qualified Data.Text.Foreign as TF
 
 #include <cmark.h>
@@ -67,7 +66,7 @@ data NodeType =
   | HTML Text
   | CODE_BLOCK Info Text
   | HEADER Level
-  | LIST ListType Tightness
+  | LIST ListType DelimType Tightness
   | ITEM
   | TEXT Text
   | SOFTBREAK
@@ -127,7 +126,7 @@ ptrToNodeType ptr =
              #const CMARK_NODE_CODE_BLOCK
                -> CODE_BLOCK info literal
              #const CMARK_NODE_LIST
-               -> LIST listType tightness
+               -> LIST listType listDelim tightness
              #const CMARK_NODE_ITEM
                -> ITEM
              #const CMARK_NODE_HEADER
@@ -150,17 +149,18 @@ ptrToNodeType ptr =
                -> SOFTBREAK
              #const CMARK_NODE_LINEBREAK
                -> LINEBREAK
+             _ -> error "Unknown node type"
   where literal   = peekCString $ c_cmark_node_get_literal ptr
         level     = c_cmark_node_get_header_level ptr
         listType  = case c_cmark_node_get_list_type ptr of
                          (#const CMARK_ORDERED_LIST) -> ORDERED_LIST
                          (#const CMARK_BULLET_LIST)  -> BULLET_LIST
                          _                           -> BULLET_LIST
-        delimType  = case c_cmark_node_get_list_delim ptr of
+        listDelim  = case c_cmark_node_get_list_delim ptr of
                          (#const CMARK_PERIOD_DELIM) -> PERIOD_DELIM
                          (#const CMARK_PAREN_DELIM)  -> PAREN_DELIM
                          _                           -> PERIOD_DELIM
-        tightness = case c_cmark_node_get_list_type ptr of
+        tightness = case c_cmark_node_get_list_tight ptr of
                          1                           -> TIGHT
                          _                           -> LOOSE
         url       = peekCString $ c_cmark_node_get_url ptr
@@ -183,10 +183,10 @@ handleNode :: (Maybe PosInfo -> NodeType -> [a] -> a) -> NodePtr -> a
 handleNode f ptr = f posinfo (ptrToNodeType ptr) children
    where children = handleNodes f $ c_cmark_node_first_child ptr
          posinfo  = getPosInfo ptr
-         handleNodes f ptr =
-           if ptr == nullPtr
+         handleNodes f' ptr' =
+           if ptr' == nullPtr
               then []
-              else handleNode f ptr : handleNodes f (c_cmark_node_next ptr)
+              else handleNode f' ptr' : handleNodes f' (c_cmark_node_next ptr')
 
 toNode :: NodePtr -> Node
 toNode = handleNode Node
