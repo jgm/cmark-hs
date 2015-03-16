@@ -48,8 +48,8 @@ provides two functions:
   - `parseDocument` uses [libcmark]'s parser to produce a `Node` tree
     that can be processed further using Haskell.  One can transform
     the tree using generics, convert it to another kind of
-    structure---e.g. a Pandoc object that can be rendered using
-    pandoc's renderers, or render it using a custom rendering
+    structure (such as a Pandoc object that can be rendered using
+    pandoc's renderers) or render it using a custom rendering
     function.
 
 
