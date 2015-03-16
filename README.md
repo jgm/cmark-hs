@@ -45,6 +45,11 @@ provides two functions:
     maximally efficient conversion of CommonMark to HTML (as a Text).
     ("Smart punctuation" and a few other options can be enabled.)
 
+    ``` haskell
+    Prelude CMark Data.Text> markdownToHtml [optSmart] (pack "dog's *breakfast*")
+    "<p>dog\8217s <em>breakfast</em></p>\n"
+    ```
+
   - `parseDocument` uses [libcmark]'s parser to produce a `Node` tree
     that can be processed further using Haskell.  One can transform
     the tree using generics, convert it to another kind of
@@ -52,6 +57,10 @@ provides two functions:
     pandoc's renderers) or render it using a custom rendering
     function.
 
+    ``` haskell
+    Prelude CMark Data.Text> parseDocument  [optSmart] (pack "dog's *breakfast*")
+    Node (Just (PosInfo {startLine = 1, startColumn = 1, endLine = 1, endColumn = 17})) DOCUMENT [Node (Just (PosInfo {startLine = 1, startColumn = 1, endLine = 1, endColumn = 17})) PARAGRAPH [Node Nothing (TEXT "dog") [],Node Nothing (TEXT "\8217") [],Node Nothing (TEXT "s ") [],Node Nothing EMPH [Node Nothing (TEXT "breakfast") []]]]
+    ```
 
 [CommonMark]: http://commonmark.org
 [libcmark]: http://github.com/jgm/cmark
