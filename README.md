@@ -21,8 +21,8 @@ libraries for Haskell:
     uses, and less than a tenth the memory that [pandoc] uses.
 
   - **Robustness:**  cmark can handle whatever is thrown at it,
-    without the exponential blowups in parsing time one can sometimes
-    get with other libraries.  (The input `bench/full-sample.md`,
+    without the exponential blowups in parsing time that sometimes afflict
+    other libraries.  (The input `bench/full-sample.md`,
     for example, causes both [pandoc] and [markdown] to grind to a halt.)
 
   - **Accuracy:**  cmark passes the CommonMark spec's suite of over
