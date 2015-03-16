@@ -2,9 +2,17 @@
     DeriveGeneric, DeriveDataTypeable, FlexibleContexts #-}
 
 module CMark (
-    Node
-  , NodeType
-  , PosInfo
+    Node(..)
+  , NodeType(..)
+  , PosInfo(..)
+  , DelimType(..)
+  , ListType(..)
+  , Tightness
+  , Url
+  , Title
+  , Level
+  , Info
+  , CMarkOption
   , markdownToHtml
   , parseDocument
   , optSourcePos
@@ -237,11 +245,15 @@ foreign import ccall "cmark.h cmark_node_get_end_line"
 foreign import ccall "cmark.h cmark_node_get_end_column"
     c_cmark_node_get_end_column :: NodePtr -> Int
 
+-- | Convert CommonMark formatted text to Html, using cmark's
+-- built-in renderer.
 markdownToHtml :: [CMarkOption] -> Text -> Text
 markdownToHtml opts s = io $
   TF.withCStringLen s $ \(ptr, len) ->
     return (peekCString $ c_cmark_markdown_to_html ptr len (combineOptions opts))
 
+-- | Convert CommonMark formatted text to a structured 'Node' tree,
+-- which can be transformed or rendered using Haskell code.
 parseDocument :: [CMarkOption] -> Text -> Node
 parseDocument opts s = io $
       TF.withCStringLen s $ \(ptr, len) ->
