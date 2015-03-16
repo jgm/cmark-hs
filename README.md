@@ -62,6 +62,9 @@ provides two functions:
     Node (Just (PosInfo {startLine = 1, startColumn = 1, endLine = 1, endColumn = 17})) DOCUMENT [Node (Just (PosInfo {startLine = 1, startColumn = 1, endLine = 1, endColumn = 17})) PARAGRAPH [Node Nothing (TEXT "dog") [],Node Nothing (TEXT "\8217") [],Node Nothing (TEXT "s ") [],Node Nothing EMPH [Node Nothing (TEXT "breakfast") []]]]
     ```
 
+**A note on security:**  This library does not attempt to sanitize
+HTML output.  We recommend using [xss-sanitize] to filter the output.
+
 [CommonMark]: http://commonmark.org
 [libcmark]: http://github.com/jgm/cmark
 [benchmarks]: https://github.com/jgm/cmark/blob/master/benchmarks.md
@@ -70,3 +73,4 @@ provides two functions:
 [sundown]: https://hackage.haskell.org/package/sundown
 [markdown]: https://hackage.haskell.org/package/markdown
 [commonmark.js]: http://github.com/jgm/commonmark.js
+[xss-sanitize]: https://hackage.haskell.org/package/xss-sanitize

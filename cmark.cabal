@@ -1,13 +1,69 @@
 name:                cmark
 version:             0.1.0.0
 synopsis:            Haskell bindings to libcmark, CommonMark parser and renderer
-description:         CommonMark is a variant of Markdown with a detailed spec
-                     (see http://commonmark.org).  This package wraps libcmark,
-                     the C reference implementation.  libcmark's code is
-                     included, so that the library need not be installed separately.
-                     Two functions are exported: one uses libcmark's parser and
-                     renderer to go from CommonMark to HTML; the other parses
-                     CommonMark to a Node tree that can be manipulated in Haskell.
+description:
+  This package provides Haskell bindings for
+  <http://github.com/jgm/cmark libcmark>, the reference parser for
+  <http://commonmark.org CommonMark>. It includes sources for
+  <http://github.com/jgm/cmark libcmark>, and does not require prior
+  installation of the C library.
+  .
+  cmark provides the following advantages over existing Markdown libraries
+  for Haskell:
+  .
+  -   __Speed:__ Conversion speed is on par with the
+      <https://hackage.haskell.org/package/sundown sundown> library: about
+      30 times faster than
+      <https://hackage.haskell.org/package/pandoc pandoc>, 24 times faster
+      than the Haskell
+      <https://hackage.haskell.org/package/markdown markdown> package, 8
+      times faster than
+      <https://hackage.haskell.org/package/cheapskate cheapskate>.
+  .
+  -   __Memory footprint:__ Memory footprint is on par with
+      <https://hackage.haskell.org/package/sundown sundown>. On one
+      sample, the library uses a fourth the memory that
+      <https://hackage.haskell.org/package/markdown markdown> uses, and
+      less than a tenth the memory that
+      <https://hackage.haskell.org/package/pandoc pandoc> uses.
+  .
+  -   __Robustness:__ cmark can handle whatever is thrown at it, without
+      the exponential blowups in parsing time one can sometimes get with
+      other libraries.
+  .
+  -   __Accuracy:__ cmark passes the CommonMark spec\'s suite of over 500
+      conformance tests.
+  .
+  -   __Standardization:__ Since there is a spec and a comprehensive suite
+      of tests, we can have a high degree of confidence that any two
+      CommonMark implementations will behave the same. Thus, for example,
+      one could use this library for server-side rendering and
+      <http://github.com/jgm/commonmark.js commonmark.js> for client-side
+      previewing.
+  .
+  -   __Ease of installation:__ cmark has minimal dependencies.
+  .
+  cmark does not provide Haskell versions of the whole
+  <http://github.com/jgm/cmark libcmark> API, which is built around
+  mutable @cmark_node@ objects. Instead, it provides two functions:
+  .
+  -   @markdownToHtml@ uses <http://github.com/jgm/cmark libcmark>\'s
+      parser and renderer for a maximally efficient conversion of
+      CommonMark to HTML (as a Text). (\"Smart punctuation\" and a few
+      other options can be enabled.)
+  .
+  -   @parseDocument@ uses <http://github.com/jgm/cmark libcmark>\'s
+      parser to produce a @Node@ tree that can be processed further using
+      Haskell. One can transform the tree using generics, convert it to
+      another kind of structure (such as a Pandoc object that can be
+      rendered using pandoc\'s renderers) or render it using a custom
+      rendering function.
+  .
+  __A note on security:__ This library does not attempt to sanitize HTML
+  output. We recommend using
+  <https://hackage.haskell.org/package/xss-sanitize xss-sanitize> to
+  filter the output.
+
 homepage:            https://github.com/jgm/commonmark-hs
 license:             BSD2
 license-file:        LICENSE
