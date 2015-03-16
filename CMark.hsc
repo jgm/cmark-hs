@@ -32,12 +32,15 @@ data Node = Node (Maybe PosInfo) NodeType [Node]
 
 data NodeType =
     DOCUMENT
+  | HRULE
   | PARAGRAPH
   | BLOCK_QUOTE
   | HEADER Int
   | TEXT Text
   | EMPH
   | STRONG
+  | SOFTBREAK
+  | LINEBREAK
   deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
 type PosInfo = Int -- for now
@@ -71,6 +74,8 @@ ptrToNodeType ptr =
   case (c_cmark_node_get_type ptr) of
              #const CMARK_NODE_DOCUMENT
                -> DOCUMENT
+             #const CMARK_NODE_HRULE
+               -> HRULE
              #const CMARK_NODE_PARAGRAPH
                -> PARAGRAPH
              #const CMARK_NODE_BLOCK_QUOTE
@@ -81,10 +86,13 @@ ptrToNodeType ptr =
                -> STRONG
              #const CMARK_NODE_TEXT
                -> TEXT string_content
+             #const CMARK_NODE_SOFTBREAK
+               -> SOFTBREAK
+             #const CMARK_NODE_LINEBREAK
+               -> LINEBREAK
   where string_content = Unsafe.unsafePerformIO $
                             TF.peekCStringLen (str, c_strlen str)
         str            = c_cmark_node_get_literal ptr
-
 
 handleNode :: (Maybe PosInfo -> NodeType -> [a] -> a) -> NodePtr -> a
 handleNode f ptr = f posinfo (ptrToNodeType ptr) children
