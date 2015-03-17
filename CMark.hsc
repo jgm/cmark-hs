@@ -15,7 +15,7 @@ module CMark (
   , PosInfo(..)
   , DelimType(..)
   , ListType(..)
-  , Tightness
+  , ListAttributes(..)
   , Url
   , Title
   , Level
@@ -49,6 +49,12 @@ data ListType =
   | ORDERED_LIST
   deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
+data ListAttributes = ListAttributes{
+    listType     :: ListType
+  , listDelim    :: DelimType
+  , tight        :: Bool
+  } deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
+
 type Url = Text
 
 type Title = Text
@@ -56,9 +62,6 @@ type Title = Text
 type Level = Int
 
 type Info = Text
-
-data Tightness = TIGHT | LOOSE
-  deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
 data NodeType =
     DOCUMENT
@@ -68,7 +71,7 @@ data NodeType =
   | HTML Text
   | CODE_BLOCK Info Text
   | HEADER Level
-  | LIST ListType DelimType Tightness
+  | LIST ListAttributes
   | ITEM
   | TEXT Text
   | SOFTBREAK
@@ -126,7 +129,7 @@ ptrToNodeType ptr =
              #const CMARK_NODE_CODE_BLOCK
                -> CODE_BLOCK info literal
              #const CMARK_NODE_LIST
-               -> LIST listType listDelim tightness
+               -> LIST listAttr
              #const CMARK_NODE_ITEM
                -> ITEM
              #const CMARK_NODE_HEADER
@@ -152,17 +155,17 @@ ptrToNodeType ptr =
              _ -> error "Unknown node type"
   where literal   = peekCString $ c_cmark_node_get_literal ptr
         level     = c_cmark_node_get_header_level ptr
-        listType  = case c_cmark_node_get_list_type ptr of
-                         (#const CMARK_ORDERED_LIST) -> ORDERED_LIST
-                         (#const CMARK_BULLET_LIST)  -> BULLET_LIST
-                         _                           -> BULLET_LIST
-        listDelim  = case c_cmark_node_get_list_delim ptr of
-                         (#const CMARK_PERIOD_DELIM) -> PERIOD_DELIM
-                         (#const CMARK_PAREN_DELIM)  -> PAREN_DELIM
-                         _                           -> PERIOD_DELIM
-        tightness = case c_cmark_node_get_list_tight ptr of
-                         1                           -> TIGHT
-                         _                           -> LOOSE
+        listAttr  = ListAttributes{
+            listType  = case c_cmark_node_get_list_type ptr of
+                             (#const CMARK_ORDERED_LIST) -> ORDERED_LIST
+                             (#const CMARK_BULLET_LIST)  -> BULLET_LIST
+                             _                           -> BULLET_LIST
+          , listDelim  = case c_cmark_node_get_list_delim ptr of
+                             (#const CMARK_PERIOD_DELIM) -> PERIOD_DELIM
+                             (#const CMARK_PAREN_DELIM)  -> PAREN_DELIM
+                             _                           -> PERIOD_DELIM
+          , tight      = c_cmark_node_get_list_tight ptr == 1
+          }
         url       = peekCString $ c_cmark_node_get_url ptr
         title     = peekCString $ c_cmark_node_get_title ptr
         info      = peekCString $ c_cmark_node_get_fence_info ptr
