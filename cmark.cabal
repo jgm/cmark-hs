@@ -123,7 +123,7 @@ library
   if impl(ghc < 7.6)
     build-depends:     ghc-prim >= 0.2
   default-language:    Haskell2010
-  ghc-options:         -Wall -Werror
+  ghc-options:         -Wall
   Include-dirs:        cbits
   Includes:            cmark.h
   c-sources:           cbits/houdini_html_u.c
