@@ -54,8 +54,9 @@ data ListType =
 
 data ListAttributes = ListAttributes{
     listType     :: ListType
+  , listTight    :: Bool
+  , listStart    :: Int
   , listDelim    :: DelimType
-  , tight        :: Bool
   } deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
 type Url = Text
@@ -167,7 +168,8 @@ ptrToNodeType ptr =
                              (#const CMARK_PERIOD_DELIM) -> PERIOD_DELIM
                              (#const CMARK_PAREN_DELIM)  -> PAREN_DELIM
                              _                           -> PERIOD_DELIM
-          , tight      = c_cmark_node_get_list_tight ptr == 1
+          , listTight  = c_cmark_node_get_list_tight ptr == 1
+          , listStart  = c_cmark_node_get_list_start ptr
           }
         url       = peekCString $ c_cmark_node_get_url ptr
         title     = peekCString $ c_cmark_node_get_title ptr
@@ -238,6 +240,9 @@ foreign import ccall "cmark.h cmark_node_get_list_type"
 
 foreign import ccall "cmark.h cmark_node_get_list_tight"
     c_cmark_node_get_list_tight :: NodePtr -> Int
+
+foreign import ccall "cmark.h cmark_node_get_list_start"
+    c_cmark_node_get_list_start :: NodePtr -> Int
 
 foreign import ccall "cmark.h cmark_node_get_list_delim"
     c_cmark_node_get_list_delim :: NodePtr -> Int
