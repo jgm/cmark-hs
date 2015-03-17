@@ -36,8 +36,11 @@ import qualified Data.Text.Foreign as TF
 
 type NodePtr = Ptr ()
 
-data Node = Node (Maybe PosInfo) NodeType [Node]
-     deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
+data Node = Node{
+    posInfo  :: Maybe PosInfo
+  , nodeType :: NodeType
+  , children :: [Node]
+  } deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
 data DelimType =
     PERIOD_DELIM
@@ -183,8 +186,8 @@ getPosInfo ptr =
                                        , endColumn = ec }
 
 handleNode :: (Maybe PosInfo -> NodeType -> [a] -> a) -> NodePtr -> a
-handleNode f ptr = f posinfo (ptrToNodeType ptr) children
-   where children = handleNodes f $ c_cmark_node_first_child ptr
+handleNode f ptr = f posinfo (ptrToNodeType ptr) children'
+   where children' = handleNodes f $ c_cmark_node_first_child ptr
          posinfo  = getPosInfo ptr
          handleNodes f' ptr' =
            if ptr' == nullPtr
