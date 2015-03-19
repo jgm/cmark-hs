@@ -28,7 +28,8 @@ import Foreign.C.Types
 import Foreign.C.String (CString)
 import qualified System.IO.Unsafe as Unsafe
 import GHC.Generics (Generic)
-import Data.Generics (Data, Typeable)
+import Data.Data (Data)
+import Data.Typeable (Typeable)
 import Data.Text (Text, empty)
 import qualified Data.Text.Foreign as TF
 
