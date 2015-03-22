@@ -169,7 +169,7 @@ ptrToNodeType ptr =
                              (#const CMARK_PERIOD_DELIM) -> PERIOD_DELIM
                              (#const CMARK_PAREN_DELIM)  -> PAREN_DELIM
                              _                           -> PERIOD_DELIM
-          , listTight  = c_cmark_node_get_list_tight ptr == 1
+          , listTight  = c_cmark_node_get_list_tight ptr
           , listStart  = c_cmark_node_get_list_start ptr
           }
         url       = totext $ c_cmark_node_get_url ptr
@@ -200,47 +200,73 @@ handleNode f ptr = f posinfo (ptrToNodeType ptr) children
 toNode :: NodePtr -> Node
 toNode = handleNode Node
 
-withLiteral :: Text -> IO NodePtr -> IO NodePtr
-withLiteral t getnode = do
-  n <- getnode
-  c_cmark_node_set_literal n (fromtext t)
-  return n
-
 fromNode :: Node -> IO NodePtr
-fromNode (Node _ nodeType children) = do
-  base <- case nodeType of
+fromNode (Node mbPos nodeType children) = do
+  node <- case nodeType of
             DOCUMENT    -> c_cmark_node_new (#const CMARK_NODE_DOCUMENT)
             HRULE       -> c_cmark_node_new (#const CMARK_NODE_HRULE)
             PARAGRAPH   -> c_cmark_node_new (#const CMARK_NODE_PARAGRAPH)
             BLOCK_QUOTE -> c_cmark_node_new (#const CMARK_NODE_BLOCK_QUOTE)
-            HTML literal -> withLiteral literal
-                            (c_cmark_node_new (#const CMARK_NODE_HTML))
-            CODE_BLOCK info literal -> withLiteral literal
-                           -- TODO add info
-                            (c_cmark_node_new (#const CMARK_NODE_CODE_BLOCK))
-            LIST attr   -> -- TODO add attribs
-                            c_cmark_node_new (#const CMARK_NODE_LIST)
+            HTML literal -> do
+                     n <- c_cmark_node_new (#const CMARK_NODE_HTML)
+                     c_cmark_node_set_literal n (fromtext literal)
+                     return n
+            CODE_BLOCK info literal -> do
+                     n <- c_cmark_node_new (#const CMARK_NODE_CODE_BLOCK)
+                     c_cmark_node_set_literal n (fromtext literal)
+                     c_cmark_node_set_fence_info n (fromtext info)
+                     return n
+            LIST attr   -> do
+                     n <- c_cmark_node_new (#const CMARK_NODE_LIST)
+                     c_cmark_node_set_list_type n $ case listType attr of
+                         ORDERED_LIST -> #const CMARK_ORDERED_LIST
+                         BULLET_LIST  -> #const CMARK_BULLET_LIST
+                     c_cmark_node_set_list_delim n $ case listDelim attr of
+                         PERIOD_DELIM -> #const CMARK_PERIOD_DELIM
+                         PAREN_DELIM  -> #const CMARK_PAREN_DELIM
+                     c_cmark_node_set_list_tight n $ listTight attr
+                     c_cmark_node_set_list_start n $ listStart attr
+                     return n
             ITEM        -> c_cmark_node_new (#const CMARK_NODE_ITEM)
-            HEADER lev  -> -- TODO add lev
-                           c_cmark_node_new (#const CMARK_NODE_HEADER)
+            HEADER lev  -> do
+                     n <- c_cmark_node_new (#const CMARK_NODE_HEADER)
+                     c_cmark_node_set_header_level n lev
+                     return n
             EMPH        -> c_cmark_node_new (#const CMARK_NODE_EMPH)
             STRONG      -> c_cmark_node_new (#const CMARK_NODE_STRONG)
-            LINK url title ->
-                           -- TODO add url, title
-                           c_cmark_node_new (#const CMARK_NODE_LINK)
-            IMAGE url title ->
-                           -- TODO add url, title
-                           c_cmark_node_new (#const CMARK_NODE_IMAGE)
-            TEXT literal -> withLiteral literal
-                            (c_cmark_node_new (#const CMARK_NODE_TEXT))
-            CODE literal -> withLiteral literal
-                            (c_cmark_node_new (#const CMARK_NODE_CODE))
-            INLINE_HTML literal -> withLiteral literal
-                            (c_cmark_node_new (#const CMARK_NODE_INLINE_HTML))
+            LINK url title -> do
+                     n <- c_cmark_node_new (#const CMARK_NODE_LINK)
+                     c_cmark_node_set_url n (fromtext url)
+                     c_cmark_node_set_title n (fromtext title)
+                     return n
+            IMAGE url title -> do
+                     n <- c_cmark_node_new (#const CMARK_NODE_IMAGE)
+                     c_cmark_node_set_url n (fromtext url)
+                     c_cmark_node_set_title n (fromtext title)
+                     return n
+            TEXT literal -> do
+                     n <- c_cmark_node_new (#const CMARK_NODE_TEXT)
+                     c_cmark_node_set_literal n (fromtext literal)
+                     return n
+            CODE literal -> do
+                     n <- c_cmark_node_new (#const CMARK_NODE_CODE)
+                     c_cmark_node_set_literal n (fromtext literal)
+                     return n
+            INLINE_HTML literal -> do
+                     n <- c_cmark_node_new (#const CMARK_NODE_INLINE_HTML)
+                     c_cmark_node_set_literal n (fromtext literal)
+                     return n
             SOFTBREAK   -> c_cmark_node_new (#const CMARK_NODE_SOFTBREAK)
             LINEBREAK   -> c_cmark_node_new (#const CMARK_NODE_LINEBREAK)
-  mapM_ (\child -> fromNode child >>= c_cmark_node_append_child base) children
-  return base
+  mapM_ (\child -> fromNode child >>= c_cmark_node_append_child node) children
+  case mbPos of
+       Nothing  -> return 0
+       Just pos -> do
+         c_cmark_node_set_start_line node (startLine pos)
+         c_cmark_node_set_end_line node (endLine pos)
+         c_cmark_node_set_start_column node (startColumn pos)
+         c_cmark_node_set_end_column node (endColumn pos)
+  return node
 
 -- | Convert CommonMark formatted text to Html, using cmark's
 -- built-in renderer.
@@ -335,7 +361,7 @@ foreign import ccall "cmark.h cmark_node_get_list_type"
     c_cmark_node_get_list_type :: NodePtr -> Int
 
 foreign import ccall "cmark.h cmark_node_get_list_tight"
-    c_cmark_node_get_list_tight :: NodePtr -> Int
+    c_cmark_node_get_list_tight :: NodePtr -> Bool
 
 foreign import ccall "cmark.h cmark_node_get_list_start"
     c_cmark_node_get_list_start :: NodePtr -> Int
@@ -377,7 +403,7 @@ foreign import ccall "cmark.h cmark_node_set_list_type"
     c_cmark_node_set_list_type :: NodePtr -> Int -> IO Int
 
 foreign import ccall "cmark.h cmark_node_set_list_tight"
-    c_cmark_node_set_list_tight :: NodePtr -> Int -> IO Int
+    c_cmark_node_set_list_tight :: NodePtr -> Bool -> IO Int
 
 foreign import ccall "cmark.h cmark_node_set_list_start"
     c_cmark_node_set_list_start :: NodePtr -> Int -> IO Int
@@ -393,3 +419,9 @@ foreign import ccall "cmark.h cmark_node_set_start_line"
 
 foreign import ccall "cmark.h cmark_node_set_start_column"
     c_cmark_node_set_start_column :: NodePtr -> Int -> IO Int
+
+foreign import ccall "cmark.h cmark_node_set_end_line"
+    c_cmark_node_set_end_line :: NodePtr -> Int -> IO Int
+
+foreign import ccall "cmark.h cmark_node_set_end_column"
+    c_cmark_node_set_end_column :: NodePtr -> Int -> IO Int
