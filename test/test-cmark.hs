@@ -1,6 +1,9 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 import CMark
 import Test.HUnit
 import System.Exit
+import Data.Text ()
 
 main :: IO ()
 main = do
@@ -11,6 +14,6 @@ main = do
 
 tests :: Test
 tests = TestList [
-    TestCase $ assertEqual "prefix" "1" "1"
+    TestCase $ assertEqual "" ("<h1>Hi</h1>\n") (commonmarkToHtml [] "# Hi\n")
   ]
 
