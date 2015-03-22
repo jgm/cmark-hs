@@ -6,7 +6,7 @@
   typedef char bool;
 #endif
 
-/* #undef HAVE___BUILTIN_EXPECT */
+#define HAVE___BUILTIN_EXPECT
 
 #define HAVE___ATTRIBUTE__
 
