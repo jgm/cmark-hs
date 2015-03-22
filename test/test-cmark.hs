@@ -12,8 +12,14 @@ main = do
        0 -> exitWith ExitSuccess
        n -> exitWith (ExitFailure n)
 
+-- The C library has its own extensive tests.
+-- Here we just make sure it's basically working.
 tests :: Test
 tests = TestList [
-    TestCase $ assertEqual "" ("<h1>Hi</h1>\n") (commonmarkToHtml [] "# Hi\n")
+    "<h1>Hi</h1>\n" ~=? commonmarkToHtml [] "# Hi"
+  , "<p>dog’s</p>\n" ~=? commonmarkToHtml [optSmart] "dog's"
+  , ".RS\n.PP\nquote\n.RE\n" ~=? commonmarkToMan [] "> quote"
+  , (Node (Just (PosInfo {startLine = 1, startColumn = 1, endLine = 1, endColumn = 13})) DOCUMENT [Node (Just (PosInfo {startLine = 1, startColumn = 1, endLine = 1, endColumn = 13})) PARAGRAPH [Node Nothing (TEXT "Hello ") [],Node Nothing EMPH [Node Nothing (TEXT "world") []]]]) ~=? commonmarkToNode [] "Hello *world*"
+  , "> Hello\n> *world*" ~=? nodeToCommonmark [] 10 (Node Nothing DOCUMENT [Node Nothing BLOCK_QUOTE [Node Nothing PARAGRAPH [Node Nothing (TEXT "Hello") [],Node Nothing EMPH [Node Nothing (TEXT "world") []]]]])
   ]
 
