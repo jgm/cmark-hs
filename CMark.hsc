@@ -56,7 +56,7 @@ commonmarkToMan = commonmarkToX c_cmark_render_man
 commonmarkToNode :: [CMarkOption] -> Text -> Node
 commonmarkToNode opts s = io $ TF.withCStringLen s $ \(ptr, len) -> do
   nptr <- c_cmark_parse_document ptr len (combineOptions opts)
-  let node = toNode nptr
+  node <- return $! toNode nptr
   c_cmark_node_free nptr
   return node
 
@@ -75,7 +75,8 @@ commonmarkToX :: (NodePtr -> CInt -> CString)
 commonmarkToX renderer opts s = io $ TF.withCStringLen s $ \(ptr, len) -> do
   let opts' = combineOptions opts
   nptr <- c_cmark_parse_document ptr len opts'
-  let t = totext $ renderer nptr opts'
+  let str = renderer nptr opts'
+  t <- TF.peekCStringLen $! (str, c_strlen str)
   c_cmark_node_free nptr
   return t
 
