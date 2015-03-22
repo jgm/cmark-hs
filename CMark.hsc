@@ -54,19 +54,22 @@ commonmarkToMan = commonmarkToX c_cmark_render_man
 -- | Convert CommonMark formatted text to a structured 'Node' tree,
 -- which can be transformed or rendered using Haskell code.
 commonmarkToNode :: [CMarkOption] -> Text -> Node
-commonmarkToNode opts s = io $! TF.withCStringLen s $! \(ptr, len) -> do
-  nptr <- c_cmark_parse_document ptr len (combineOptions opts)
-  node <- return $! toNode nptr
-  c_cmark_node_free nptr
-  return node
+commonmarkToNode opts s = io $ do
+  nptr <- TF.withCStringLen s $! \(ptr, len) ->
+             c_cmark_parse_document ptr len (combineOptions opts)
+  fptr <- newForeignPtr c_cmark_node_free nptr
+  withForeignPtr fptr $ \ptr -> do
+    node <- return $! toNode ptr
+    return node
 
 nodeToCommonmark :: [CMarkOption] -> Int -> Node -> Text
 nodeToCommonmark opts width node = io $ do
   nptr <- fromNode node
-  let cstr = c_cmark_render_commonmark nptr (combineOptions opts) width
-  t <- TF.peekCStringLen (cstr, c_strlen cstr)
-  c_cmark_node_free nptr
-  return t
+  fptr <- newForeignPtr c_cmark_node_free nptr
+  withForeignPtr fptr $ \ptr -> do
+    let cstr = c_cmark_render_commonmark ptr (combineOptions opts) width
+    t <- TF.peekCStringLen (cstr, c_strlen cstr)
+    return t
 
 commonmarkToX :: (NodePtr -> CInt -> CString)
               -> [CMarkOption]
@@ -75,10 +78,11 @@ commonmarkToX :: (NodePtr -> CInt -> CString)
 commonmarkToX renderer opts s = io $ TF.withCStringLen s $ \(ptr, len) -> do
   let opts' = combineOptions opts
   nptr <- c_cmark_parse_document ptr len opts'
-  let str = renderer nptr opts'
-  t <- TF.peekCStringLen $! (str, c_strlen str)
-  c_cmark_node_free nptr
-  return t
+  fptr <- newForeignPtr c_cmark_node_free nptr
+  withForeignPtr fptr $ \p -> do
+    let str = renderer p opts'
+    t <- TF.peekCStringLen $! (str, c_strlen str)
+    return t
 
 type NodePtr = Ptr ()
 
@@ -232,12 +236,13 @@ getPosInfo ptr =
 
 handleNode :: (Maybe PosInfo -> NodeType -> [a] -> a) -> NodePtr -> a
 handleNode f ptr = f posinfo (ptrToNodeType ptr) children
-   where children = handleNodes f $ c_cmark_node_first_child ptr
+   where children = handleNodes f $! c_cmark_node_first_child ptr
          posinfo  = getPosInfo ptr
          handleNodes f' ptr' =
            if ptr' == nullPtr
               then []
-              else handleNode f' ptr' : handleNodes f' (c_cmark_node_next ptr')
+              else handleNode f' ptr' :
+                   (handleNodes f' $! c_cmark_node_next ptr')
 
 toNode :: NodePtr -> Node
 toNode = handleNode Node
@@ -413,5 +418,5 @@ foreign import ccall "cmark.h cmark_node_set_list_delim"
 foreign import ccall "cmark.h cmark_node_set_fence_info"
     c_cmark_node_set_fence_info :: NodePtr -> CString -> IO Int
 
-foreign import ccall "cmark.h cmark_node_free"
-    c_cmark_node_free :: NodePtr -> IO Int
+foreign import ccall "cmark.h &cmark_node_free"
+    c_cmark_node_free :: FunPtr (NodePtr -> IO ())
