@@ -300,8 +300,12 @@ commonmarkToNode opts s = io $
         toNode <$> c_cmark_parse_document ptr len (combineOptions opts)
 
 nodeToCommonmark :: [CMarkOption] -> Int -> Node -> Text
-nodeToCommonmark opts width node = totext $
-  c_cmark_render_commonmark (io $ fromNode node) (combineOptions opts) width
+nodeToCommonmark opts width node = io $ do
+  nptr <- fromNode node
+  let cstr = c_cmark_render_commonmark nptr (combineOptions opts) width
+  t <- TF.peekCStringLen (cstr, c_strlen cstr)
+  c_cmark_node_free nptr
+  return t
 
 io :: IO a -> a
 io = Unsafe.unsafePerformIO
@@ -424,3 +428,6 @@ foreign import ccall "cmark.h cmark_node_set_end_line"
 
 foreign import ccall "cmark.h cmark_node_set_end_column"
     c_cmark_node_set_end_column :: NodePtr -> Int -> IO Int
+
+foreign import ccall "cmark.h cmark_node_free"
+    c_cmark_node_free :: NodePtr -> IO Int
