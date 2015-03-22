@@ -20,6 +20,6 @@ tests = TestList [
   , "<p>dog’s</p>\n" ~=? commonmarkToHtml [optSmart] "dog's"
   , ".RS\n.PP\nquote\n.RE\n" ~=? commonmarkToMan [] "> quote"
   , (Node (Just (PosInfo {startLine = 1, startColumn = 1, endLine = 1, endColumn = 13})) DOCUMENT [Node (Just (PosInfo {startLine = 1, startColumn = 1, endLine = 1, endColumn = 13})) PARAGRAPH [Node Nothing (TEXT "Hello ") [],Node Nothing EMPH [Node Nothing (TEXT "world") []]]]) ~=? commonmarkToNode [] "Hello *world*"
-  , "> Hello\n> *world*" ~=? nodeToCommonmark [] 10 (Node Nothing DOCUMENT [Node Nothing BLOCK_QUOTE [Node Nothing PARAGRAPH [Node Nothing (TEXT "Hello") [],Node Nothing EMPH [Node Nothing (TEXT "world") []]]]])
+  , "> Hello\n> *world*\n" ~=? nodeToCommonmark [] 12 (Node Nothing DOCUMENT [Node Nothing BLOCK_QUOTE [Node Nothing PARAGRAPH [Node Nothing (TEXT "Hello ") [],Node Nothing EMPH [Node Nothing (TEXT "world") []]]]])
   ]
 

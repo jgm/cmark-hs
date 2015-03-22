@@ -54,7 +54,7 @@ commonmarkToMan = commonmarkToX c_cmark_render_man
 -- | Convert CommonMark formatted text to a structured 'Node' tree,
 -- which can be transformed or rendered using Haskell code.
 commonmarkToNode :: [CMarkOption] -> Text -> Node
-commonmarkToNode opts s = io $ TF.withCStringLen s $ \(ptr, len) -> do
+commonmarkToNode opts s = io $! TF.withCStringLen s $! \(ptr, len) -> do
   nptr <- c_cmark_parse_document ptr len (combineOptions opts)
   node <- return $! toNode nptr
   c_cmark_node_free nptr
@@ -309,10 +309,10 @@ io = Unsafe.unsafePerformIO
 totext :: CString -> Text
 totext str
   | str == nullPtr = empty
-  | otherwise      = io $ TF.peekCStringLen (str, c_strlen str)
+  | otherwise      = io $! TF.peekCStringLen (str, c_strlen str)
 
 fromtext :: Text -> CString
-fromtext t = io $ withCString (unpack t) return
+fromtext t = io $! withCString (unpack t) return
 
 foreign import ccall "string.h strlen"
     c_strlen :: CString -> Int
