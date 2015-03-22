@@ -29,13 +29,55 @@ import Foreign.C.Types
 import Foreign.C.String (CString, withCString)
 import qualified System.IO.Unsafe as Unsafe
 import GHC.Generics (Generic)
-import Control.Applicative ((<$>))
 import Data.Data (Data)
 import Data.Typeable (Typeable)
 import Data.Text (Text, empty, unpack)
 import qualified Data.Text.Foreign as TF
 
 #include <cmark.h>
+
+-- | Convert CommonMark formatted text to Html, using cmark's
+-- built-in renderer.
+commonmarkToHtml :: [CMarkOption] -> Text -> Text
+commonmarkToHtml = commonmarkToX c_cmark_render_html
+
+-- | Convert CommonMark formatted text to CommonMark XML, using cmark's
+-- built-in renderer.
+commonmarkToXml :: [CMarkOption] -> Text -> Text
+commonmarkToXml = commonmarkToX c_cmark_render_xml
+
+-- | Convert CommonMark formatted text to groff man, using cmark's
+-- built-in renderer.
+commonmarkToMan :: [CMarkOption] -> Text -> Text
+commonmarkToMan = commonmarkToX c_cmark_render_man
+
+-- | Convert CommonMark formatted text to a structured 'Node' tree,
+-- which can be transformed or rendered using Haskell code.
+commonmarkToNode :: [CMarkOption] -> Text -> Node
+commonmarkToNode opts s = io $ TF.withCStringLen s $ \(ptr, len) -> do
+  nptr <- c_cmark_parse_document ptr len (combineOptions opts)
+  let node = toNode nptr
+  c_cmark_node_free nptr
+  return node
+
+nodeToCommonmark :: [CMarkOption] -> Int -> Node -> Text
+nodeToCommonmark opts width node = io $ do
+  nptr <- fromNode node
+  let cstr = c_cmark_render_commonmark nptr (combineOptions opts) width
+  t <- TF.peekCStringLen (cstr, c_strlen cstr)
+  c_cmark_node_free nptr
+  return t
+
+commonmarkToX :: (NodePtr -> CInt -> CString)
+              -> [CMarkOption]
+              -> Text
+              -> Text
+commonmarkToX renderer opts s = io $ TF.withCStringLen s $ \(ptr, len) -> do
+  let opts' = combineOptions opts
+  nptr <- c_cmark_parse_document ptr len opts'
+  let t = totext $ renderer nptr opts'
+  c_cmark_node_free nptr
+  return t
 
 type NodePtr = Ptr ()
 
@@ -200,7 +242,7 @@ toNode :: NodePtr -> Node
 toNode = handleNode Node
 
 fromNode :: Node -> IO NodePtr
-fromNode (Node mbPos nodeType children) = do
+fromNode (Node _ nodeType children) = do
   node <- case nodeType of
             DOCUMENT    -> c_cmark_node_new (#const CMARK_NODE_DOCUMENT)
             HRULE       -> c_cmark_node_new (#const CMARK_NODE_HRULE)
@@ -258,54 +300,7 @@ fromNode (Node mbPos nodeType children) = do
             SOFTBREAK   -> c_cmark_node_new (#const CMARK_NODE_SOFTBREAK)
             LINEBREAK   -> c_cmark_node_new (#const CMARK_NODE_LINEBREAK)
   mapM_ (\child -> fromNode child >>= c_cmark_node_append_child node) children
-  case mbPos of
-       Nothing  -> return 0
-       Just pos -> do
-         c_cmark_node_set_start_line node (startLine pos)
-         c_cmark_node_set_end_line node (endLine pos)
-         c_cmark_node_set_start_column node (startColumn pos)
-         c_cmark_node_set_end_column node (endColumn pos)
   return node
-
--- | Convert CommonMark formatted text to Html, using cmark's
--- built-in renderer.
-commonmarkToHtml :: [CMarkOption] -> Text -> Text
-commonmarkToHtml opts s = io $
-  TF.withCStringLen s $ \(ptr, len) ->
-    return (totext $ c_cmark_markdown_to_html ptr len (combineOptions opts))
-
--- | Convert CommonMark formatted text to CommonMark XML, using cmark's
--- built-in renderer.
-commonmarkToXml :: [CMarkOption] -> Text -> Text
-commonmarkToXml opts s = io $
-  TF.withCStringLen s $ \(ptr, len) -> do
-    let opts' = combineOptions opts
-    doc <- c_cmark_parse_document ptr len opts'
-    return (totext $ c_cmark_render_xml doc opts')
-
--- | Convert CommonMark formatted text to groff man, using cmark's
--- built-in renderer.
-commonmarkToMan :: [CMarkOption] -> Text -> Text
-commonmarkToMan opts s = io $
-  TF.withCStringLen s $ \(ptr, len) -> do
-    let opts' = combineOptions opts
-    doc <- c_cmark_parse_document ptr len opts'
-    return (totext $ c_cmark_render_man doc opts')
-
--- | Convert CommonMark formatted text to a structured 'Node' tree,
--- which can be transformed or rendered using Haskell code.
-commonmarkToNode :: [CMarkOption] -> Text -> Node
-commonmarkToNode opts s = io $
-      TF.withCStringLen s $ \(ptr, len) ->
-        toNode <$> c_cmark_parse_document ptr len (combineOptions opts)
-
-nodeToCommonmark :: [CMarkOption] -> Int -> Node -> Text
-nodeToCommonmark opts width node = io $ do
-  nptr <- fromNode node
-  let cstr = c_cmark_render_commonmark nptr (combineOptions opts) width
-  t <- TF.peekCStringLen (cstr, c_strlen cstr)
-  c_cmark_node_free nptr
-  return t
 
 io :: IO a -> a
 io = Unsafe.unsafePerformIO
@@ -324,8 +319,8 @@ foreign import ccall "string.h strlen"
 foreign import ccall "cmark.h cmark_node_new"
     c_cmark_node_new :: Int -> IO NodePtr
 
-foreign import ccall "cmark.h cmark_markdown_to_html"
-    c_cmark_markdown_to_html :: CString -> Int -> CInt -> CString
+foreign import ccall "cmark.h cmark_render_html"
+    c_cmark_render_html :: NodePtr -> CInt -> CString
 
 foreign import ccall "cmark.h cmark_render_xml"
     c_cmark_render_xml :: NodePtr -> CInt -> CString
@@ -416,18 +411,6 @@ foreign import ccall "cmark.h cmark_node_set_list_delim"
 
 foreign import ccall "cmark.h cmark_node_set_fence_info"
     c_cmark_node_set_fence_info :: NodePtr -> CString -> IO Int
-
-foreign import ccall "cmark.h cmark_node_set_start_line"
-    c_cmark_node_set_start_line :: NodePtr -> Int -> IO Int
-
-foreign import ccall "cmark.h cmark_node_set_start_column"
-    c_cmark_node_set_start_column :: NodePtr -> Int -> IO Int
-
-foreign import ccall "cmark.h cmark_node_set_end_line"
-    c_cmark_node_set_end_line :: NodePtr -> Int -> IO Int
-
-foreign import ccall "cmark.h cmark_node_set_end_column"
-    c_cmark_node_set_end_column :: NodePtr -> Int -> IO Int
 
 foreign import ccall "cmark.h cmark_node_free"
     c_cmark_node_free :: NodePtr -> IO Int
