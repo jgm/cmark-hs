@@ -30,10 +30,9 @@ import Foreign.C.String (CString, withCString)
 import qualified System.IO.Unsafe as Unsafe
 import GHC.Generics (Generic)
 import Control.Applicative ((<$>))
-import Data.List (foldl')
 import Data.Data (Data)
 import Data.Typeable (Typeable)
-import Data.Text (Text, empty, pack, unpack)
+import Data.Text (Text, empty, unpack)
 import qualified Data.Text.Foreign as TF
 
 #include <cmark.h>
