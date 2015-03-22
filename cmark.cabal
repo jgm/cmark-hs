@@ -124,6 +124,7 @@ library
     build-depends:     ghc-prim >= 0.2
   default-language:    Haskell2010
   ghc-options:         -Wall -fno-warn-unused-do-bind
+  cc-options:          -Wall -std=c99
   Include-dirs:        cbits
   Includes:            cmark.h
   c-sources:           cbits/houdini_html_u.c
@@ -157,3 +158,11 @@ benchmark bench-cmark
                     blaze-html >= 0.7 && < 0.8
   ghc-options:      -O2
   default-language: Haskell2010
+
+Test-Suite test-cmark
+  type:           exitcode-stdio-1.0
+  main-is:        test-cmark.hs
+  hs-source-dirs: test
+  build-depends:  base, cmark, text, HUnit >= 1.2 && < 1.3
+  ghc-options:    -Wall -fno-warn-unused-do-bind -threaded
+  default-language: Haskell98
