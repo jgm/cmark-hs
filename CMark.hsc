@@ -241,7 +241,7 @@ handleNode f ptr = f posinfo (ptrToNodeType ptr) children
          handleNodes f' ptr' =
            if ptr' == nullPtr
               then []
-              else handleNode f' ptr' :
+              else (:) (handleNode f' ptr') $!
                    (handleNodes f' $! c_cmark_node_next ptr')
 
 toNode :: NodePtr -> Node
