@@ -33,6 +33,7 @@ import Data.Data (Data)
 import Data.Typeable (Typeable)
 import Data.Text (Text, empty, unpack)
 import qualified Data.Text.Foreign as TF
+import Control.Applicative ((<$>), (<*>))
 
 #include <cmark.h>
 
@@ -58,20 +59,17 @@ commonmarkToNode opts s = io $ do
   nptr <- TF.withCStringLen s $! \(ptr, len) ->
              c_cmark_parse_document ptr len (combineOptions opts)
   fptr <- newForeignPtr c_cmark_node_free nptr
-  withForeignPtr fptr $ \ptr -> do
-    node <- return $! toNode ptr
-    return node
+  withForeignPtr fptr toNode
 
 nodeToCommonmark :: [CMarkOption] -> Int -> Node -> Text
 nodeToCommonmark opts width node = io $ do
   nptr <- fromNode node
   fptr <- newForeignPtr c_cmark_node_free nptr
   withForeignPtr fptr $ \ptr -> do
-    let cstr = c_cmark_render_commonmark ptr (combineOptions opts) width
-    t <- TF.peekCStringLen (cstr, c_strlen cstr)
-    return t
+    cstr <- c_cmark_render_commonmark ptr (combineOptions opts) width
+    TF.peekCStringLen (cstr, c_strlen cstr)
 
-commonmarkToX :: (NodePtr -> CInt -> CString)
+commonmarkToX :: (NodePtr -> CInt -> IO CString)
               -> [CMarkOption]
               -> Text
               -> Text
@@ -80,7 +78,7 @@ commonmarkToX renderer opts s = io $ TF.withCStringLen s $ \(ptr, len) -> do
   nptr <- c_cmark_parse_document ptr len opts'
   fptr <- newForeignPtr c_cmark_node_free nptr
   withForeignPtr fptr $ \p -> do
-    let str = renderer p opts'
+    str <- renderer p opts'
     t <- TF.peekCStringLen $! (str, c_strlen str)
     return t
 
@@ -164,88 +162,97 @@ optNormalize = CMarkOption #const CMARK_OPT_NORMALIZE
 optSmart :: CMarkOption
 optSmart = CMarkOption #const CMARK_OPT_SMART
 
-ptrToNodeType :: NodePtr -> NodeType
-ptrToNodeType ptr =
-  case (c_cmark_node_get_type ptr) of
-             #const CMARK_NODE_DOCUMENT
-               -> DOCUMENT
-             #const CMARK_NODE_HRULE
-               -> HRULE
-             #const CMARK_NODE_PARAGRAPH
-               -> PARAGRAPH
-             #const CMARK_NODE_BLOCK_QUOTE
-               -> BLOCK_QUOTE
-             #const CMARK_NODE_HTML
-               -> HTML literal
-             #const CMARK_NODE_CODE_BLOCK
-               -> CODE_BLOCK info literal
-             #const CMARK_NODE_LIST
-               -> LIST listAttr
-             #const CMARK_NODE_ITEM
-               -> ITEM
-             #const CMARK_NODE_HEADER
-               -> HEADER level
-             #const CMARK_NODE_EMPH
-               -> EMPH
-             #const CMARK_NODE_STRONG
-               -> STRONG
-             #const CMARK_NODE_LINK
-               -> LINK url title
-             #const CMARK_NODE_IMAGE
-               -> IMAGE url title
-             #const CMARK_NODE_TEXT
-               -> TEXT literal
-             #const CMARK_NODE_CODE
-               -> CODE literal
-             #const CMARK_NODE_INLINE_HTML
-               -> INLINE_HTML literal
-             #const CMARK_NODE_SOFTBREAK
-               -> SOFTBREAK
-             #const CMARK_NODE_LINEBREAK
-               -> LINEBREAK
-             _ -> error "Unknown node type"
-  where literal   = totext $ c_cmark_node_get_literal ptr
+ptrToNodeType :: NodePtr -> IO NodeType
+ptrToNodeType ptr = do
+  nodeType <- c_cmark_node_get_type ptr
+  case nodeType of
+       #const CMARK_NODE_DOCUMENT
+         -> return DOCUMENT
+       #const CMARK_NODE_HRULE
+         -> return HRULE
+       #const CMARK_NODE_PARAGRAPH
+         -> return PARAGRAPH
+       #const CMARK_NODE_BLOCK_QUOTE
+         -> return BLOCK_QUOTE
+       #const CMARK_NODE_HTML
+         -> HTML <$> literal
+       #const CMARK_NODE_CODE_BLOCK
+         -> CODE_BLOCK <$> info
+                       <*> literal
+       #const CMARK_NODE_LIST
+         -> LIST <$> listAttr
+       #const CMARK_NODE_ITEM
+         -> return ITEM
+       #const CMARK_NODE_HEADER
+         -> HEADER <$> level
+       #const CMARK_NODE_EMPH
+         -> return EMPH
+       #const CMARK_NODE_STRONG
+         -> return STRONG
+       #const CMARK_NODE_LINK
+         -> LINK <$> url <*> title
+       #const CMARK_NODE_IMAGE
+         -> IMAGE <$> url <*> title
+       #const CMARK_NODE_TEXT
+         -> TEXT <$> literal
+       #const CMARK_NODE_CODE
+         -> CODE <$> literal
+       #const CMARK_NODE_INLINE_HTML
+         -> INLINE_HTML <$> literal
+       #const CMARK_NODE_SOFTBREAK
+         -> return SOFTBREAK
+       #const CMARK_NODE_LINEBREAK
+         -> return LINEBREAK
+       _ -> error "Unknown node type"
+  where literal   = c_cmark_node_get_literal ptr >>= totext
         level     = c_cmark_node_get_header_level ptr
-        listAttr  = ListAttributes{
-            listType  = case c_cmark_node_get_list_type ptr of
+        listAttr  = do
+          listtype <- c_cmark_node_get_list_type ptr
+          listdelim <- c_cmark_node_get_list_delim ptr
+          tight <- c_cmark_node_get_list_tight ptr
+          start <- c_cmark_node_get_list_start ptr
+          return ListAttributes{
+            listType  = case listtype of
                              (#const CMARK_ORDERED_LIST) -> ORDERED_LIST
                              (#const CMARK_BULLET_LIST)  -> BULLET_LIST
                              _                           -> BULLET_LIST
-          , listDelim  = case c_cmark_node_get_list_delim ptr of
+          , listDelim  = case listdelim of
                              (#const CMARK_PERIOD_DELIM) -> PERIOD_DELIM
                              (#const CMARK_PAREN_DELIM)  -> PAREN_DELIM
                              _                           -> PERIOD_DELIM
-          , listTight  = c_cmark_node_get_list_tight ptr
-          , listStart  = c_cmark_node_get_list_start ptr
+          , listTight  = tight
+          , listStart  = start
           }
-        url       = totext $ c_cmark_node_get_url ptr
-        title     = totext $ c_cmark_node_get_title ptr
-        info      = totext $ c_cmark_node_get_fence_info ptr
+        url       = c_cmark_node_get_url ptr >>= totext
+        title     = c_cmark_node_get_title ptr >>= totext
+        info      = c_cmark_node_get_fence_info ptr >>= totext
 
-getPosInfo :: NodePtr -> Maybe PosInfo
-getPosInfo ptr =
-   case (c_cmark_node_get_start_line ptr,
-         c_cmark_node_get_start_column ptr,
-         c_cmark_node_get_end_line ptr,
-         c_cmark_node_get_end_column ptr) of
-       (0, 0, 0, 0) -> Nothing
-       (sl, sc, el, ec) -> Just PosInfo{ startLine = sl
-                                       , startColumn = sc
-                                       , endLine = el
-                                       , endColumn = ec }
+getPosInfo :: NodePtr -> IO (Maybe PosInfo)
+getPosInfo ptr = do
+  startline <- c_cmark_node_get_start_line ptr
+  endline <- c_cmark_node_get_end_line ptr
+  startcol <- c_cmark_node_get_start_column ptr
+  endcol <- c_cmark_node_get_end_column ptr
+  if startline + endline + startcol + endcol == 0
+     then return Nothing
+     else return $ Just PosInfo{ startLine = startline
+                               , startColumn = startcol
+                               , endLine = endline
+                               , endColumn = endcol }
 
-handleNode :: (Maybe PosInfo -> NodeType -> [a] -> a) -> NodePtr -> a
-handleNode f ptr = f posinfo (ptrToNodeType ptr) children
-   where children = handleNodes f $! c_cmark_node_first_child ptr
-         posinfo  = getPosInfo ptr
-         handleNodes f' ptr' =
-           if ptr' == nullPtr
-              then []
-              else (:) (handleNode f' ptr') $!
-                   (handleNodes f' $! c_cmark_node_next ptr')
-
-toNode :: NodePtr -> Node
-toNode = handleNode Node
+toNode :: NodePtr -> IO Node
+toNode ptr = do
+  let handleNodes ptr' =
+        if ptr' == nullPtr
+           then return []
+           else do
+              x  <- toNode ptr'
+              xs <- c_cmark_node_next ptr' >>= handleNodes
+              return $! (x:xs)
+  nodeType <- ptrToNodeType ptr
+  children <- c_cmark_node_first_child ptr >>= handleNodes
+  posinfo <- getPosInfo ptr
+  return $! Node posinfo nodeType children
 
 fromNode :: Node -> IO NodePtr
 fromNode (Node _ nodeType children) = do
@@ -311,10 +318,10 @@ fromNode (Node _ nodeType children) = do
 io :: IO a -> a
 io = Unsafe.unsafePerformIO
 
-totext :: CString -> Text
+totext :: CString -> IO Text
 totext str
-  | str == nullPtr = empty
-  | otherwise      = io $! TF.peekCStringLen (str, c_strlen str)
+  | str == nullPtr = return empty
+  | otherwise      = TF.peekCStringLen (str, c_strlen str)
 
 fromtext :: Text -> CString
 fromtext t = io $! withCString (unpack t) return
@@ -326,67 +333,67 @@ foreign import ccall "cmark.h cmark_node_new"
     c_cmark_node_new :: Int -> IO NodePtr
 
 foreign import ccall "cmark.h cmark_render_html"
-    c_cmark_render_html :: NodePtr -> CInt -> CString
+    c_cmark_render_html :: NodePtr -> CInt -> IO CString
 
 foreign import ccall "cmark.h cmark_render_xml"
-    c_cmark_render_xml :: NodePtr -> CInt -> CString
+    c_cmark_render_xml :: NodePtr -> CInt -> IO CString
 
 foreign import ccall "cmark.h cmark_render_man"
-    c_cmark_render_man :: NodePtr -> CInt -> CString
+    c_cmark_render_man :: NodePtr -> CInt -> IO CString
 
 foreign import ccall "cmark.h cmark_render_commonmark"
-    c_cmark_render_commonmark :: NodePtr -> CInt -> Int -> CString
+    c_cmark_render_commonmark :: NodePtr -> CInt -> Int -> IO CString
 
 foreign import ccall "cmark.h cmark_parse_document"
     c_cmark_parse_document :: CString -> Int -> CInt -> IO NodePtr
 
 foreign import ccall "cmark.h cmark_node_get_type"
-    c_cmark_node_get_type :: NodePtr -> Int
+    c_cmark_node_get_type :: NodePtr -> IO Int
 
 foreign import ccall "cmark.h cmark_node_first_child"
-    c_cmark_node_first_child :: NodePtr -> NodePtr
+    c_cmark_node_first_child :: NodePtr -> IO NodePtr
 
 foreign import ccall "cmark.h cmark_node_next"
-    c_cmark_node_next :: NodePtr -> NodePtr
+    c_cmark_node_next :: NodePtr -> IO NodePtr
 
 foreign import ccall "cmark.h cmark_node_get_literal"
-    c_cmark_node_get_literal :: NodePtr -> CString
+    c_cmark_node_get_literal :: NodePtr -> IO CString
 
 foreign import ccall "cmark.h cmark_node_get_url"
-    c_cmark_node_get_url :: NodePtr -> CString
+    c_cmark_node_get_url :: NodePtr -> IO CString
 
 foreign import ccall "cmark.h cmark_node_get_title"
-    c_cmark_node_get_title :: NodePtr -> CString
+    c_cmark_node_get_title :: NodePtr -> IO CString
 
 foreign import ccall "cmark.h cmark_node_get_header_level"
-    c_cmark_node_get_header_level :: NodePtr -> Int
+    c_cmark_node_get_header_level :: NodePtr -> IO Int
 
 foreign import ccall "cmark.h cmark_node_get_list_type"
-    c_cmark_node_get_list_type :: NodePtr -> Int
+    c_cmark_node_get_list_type :: NodePtr -> IO Int
 
 foreign import ccall "cmark.h cmark_node_get_list_tight"
-    c_cmark_node_get_list_tight :: NodePtr -> Bool
+    c_cmark_node_get_list_tight :: NodePtr -> IO Bool
 
 foreign import ccall "cmark.h cmark_node_get_list_start"
-    c_cmark_node_get_list_start :: NodePtr -> Int
+    c_cmark_node_get_list_start :: NodePtr -> IO Int
 
 foreign import ccall "cmark.h cmark_node_get_list_delim"
-    c_cmark_node_get_list_delim :: NodePtr -> Int
+    c_cmark_node_get_list_delim :: NodePtr -> IO Int
 
 foreign import ccall "cmark.h cmark_node_get_fence_info"
-    c_cmark_node_get_fence_info :: NodePtr -> CString
+    c_cmark_node_get_fence_info :: NodePtr -> IO CString
 
 foreign import ccall "cmark.h cmark_node_get_start_line"
-    c_cmark_node_get_start_line :: NodePtr -> Int
+    c_cmark_node_get_start_line :: NodePtr -> IO Int
 
 foreign import ccall "cmark.h cmark_node_get_start_column"
-    c_cmark_node_get_start_column :: NodePtr -> Int
+    c_cmark_node_get_start_column :: NodePtr -> IO Int
 
 foreign import ccall "cmark.h cmark_node_get_end_line"
-    c_cmark_node_get_end_line :: NodePtr -> Int
+    c_cmark_node_get_end_line :: NodePtr -> IO Int
 
 foreign import ccall "cmark.h cmark_node_get_end_column"
-    c_cmark_node_get_end_column :: NodePtr -> Int
+    c_cmark_node_get_end_column :: NodePtr -> IO Int
 
 foreign import ccall "cmark.h cmark_node_append_child"
     c_cmark_node_append_child :: NodePtr -> NodePtr -> IO Int
