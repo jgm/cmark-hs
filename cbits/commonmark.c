@@ -22,6 +22,7 @@ struct render_state {
 	int last_breakable;
 	bool begin_line;
 	bool no_wrap;
+	bool in_tight_list_item;
 };
 
 static inline void cr(struct render_state *state)
@@ -67,6 +68,9 @@ static inline void out(struct render_state *state,
 
 	wrap = wrap && !state->no_wrap;
 
+	if (state->in_tight_list_item && state->need_cr > 1) {
+		state->need_cr = 1;
+	}
 	while (state->need_cr) {
 		if (k < 0 || state->buffer->ptr[k] == '\n') {
 			k -= 1;
@@ -180,11 +184,18 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 {
 	cmark_node *tmp;
 	int list_number;
+	cmark_delim_type list_delim;
 	int numticks;
 	int i;
 	bool entering = (ev_type == CMARK_EVENT_ENTER);
 	const char *info;
 	const char *title;
+	char listmarker[64];
+	int marker_width;
+
+	state->in_tight_list_item =
+		node->type == CMARK_NODE_ITEM &&
+		cmark_node_get_list_tight(node->parent);
 
 	switch (node->type) {
 	case CMARK_NODE_DOCUMENT:
@@ -198,7 +209,8 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 			lit(state, "> ", false);
 			cmark_strbuf_puts(state->prefix, "> ");
 		} else {
-			cmark_strbuf_truncate(state->prefix, state->prefix->size - 2);
+			cmark_strbuf_truncate(state->prefix,
+					      state->prefix->size - 2);
 			blankline(state);
 		}
 		break;
@@ -207,25 +219,41 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 		break;
 
 	case CMARK_NODE_ITEM:
+		if (cmark_node_get_list_type(node->parent) ==
+		    CMARK_BULLET_LIST) {
+			marker_width = 2;
+		} else {
+			list_number = cmark_node_get_list_start(node->parent);
+			list_delim = cmark_node_get_list_delim(node->parent);
+			tmp = node;
+			while (tmp->prev) {
+				tmp = tmp->prev;
+				list_number += 1;
+			}
+			// we ensure a width of at least 4 so
+			// we get nice transition from single digits
+			// to double
+			snprintf(listmarker, 63, "%d%s%s", list_number,
+				 list_delim == CMARK_PAREN_DELIM ?
+				 ")" : ".",
+				 list_number < 10 ? "  " : " ");
+			marker_width = strlen(listmarker);
+		}
 		if (entering) {
 			if (cmark_node_get_list_type(node->parent) ==
 			    CMARK_BULLET_LIST) {
 				lit(state, "- ", false);
 				cmark_strbuf_puts(state->prefix, "  ");
 			} else {
-				list_number = cmark_node_get_list_start(node->parent);
-				tmp = node;
-				while (tmp->prev) {
-					tmp = tmp->prev;
-					list_number += 1;
+				lit(state, listmarker, false);
+				for (i=marker_width; i--;) {
+					cmark_strbuf_putc(state->prefix, ' ');
 				}
-				lit(state, "1.  ", false);
-				cmark_strbuf_puts(state->prefix, "    ");
 			}
 		} else {
-			cmark_strbuf_truncate(state->prefix, state->prefix->size -
-					      (cmark_node_get_list_type(node->parent) ==
-					       CMARK_BULLET_LIST ? 2 : 4));
+			cmark_strbuf_truncate(state->prefix,
+					      state->prefix->size -
+					      marker_width);
 			cr(state);
 		}
 		break;
@@ -393,7 +421,8 @@ char *cmark_render_commonmark(cmark_node *root, int options, int width)
 		width = 0;
 	}
 	struct render_state state =
-		{ options, &commonmark, &prefix, 0, width, 0, 0, true, false };
+		{ options, &commonmark, &prefix, 0, width,
+		  0, 0, true, false, false};
 	cmark_node *cur;
 	cmark_event_type ev_type;
 	cmark_iter *iter = cmark_iter_new(root);
