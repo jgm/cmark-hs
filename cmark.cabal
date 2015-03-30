@@ -90,6 +90,7 @@ category:            Text
 tested-with:         GHC == 7.4.2, GHC == 7.6.3, GHC == 7.8.2
 build-type:          Simple
 extra-source-files:  README.md
+                     changelog
                      cbits/bench.h
                      cbits/chunk.h
                      cbits/cmark_export.h

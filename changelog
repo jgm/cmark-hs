@@ -1,0 +1,13 @@
+cmark 0.3.1 (29 Mar 2015)
+
+  * Added nodeToCommonmark.
+  * Removed mtl from build-depends.
+  * Updated source info in README, cabal.
+  * Updated C sources.
+  * Put all the C functions in the IO monad, and ensure
+    that memory allocated by the C library is freed
+    at the right time.
+  * Added a rudimentary test suite.
+  * Properly free c-allocated resources.
+  * Removed bindings to nonexistent setters for source pos
+    attributes.
