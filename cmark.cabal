@@ -13,7 +13,7 @@ description:
   cmark provides the following advantages over existing
   Markdown libraries for Haskell:
   .
-  -   __Speed:__ Conversion speed is on par with the
+  -   Speed: Conversion speed is on par with the
       <https://hackage.haskell.org/package/sundown sundown>
       library. We were unable to measure precisely
       against
@@ -29,17 +29,15 @@ description:
       and 2.8 times faster than
       <https://hackage.haskell.org/package/discount discount>.
   .
-  -   __Memory footprint:__ Memory footprint is on par
-      with
+  -   Memory footprint: Memory footprint is on par with
       <https://hackage.haskell.org/package/sundown sundown>.
-      On one sample, the library uses a fourth the memory
-      that
+      On one sample, the library uses a fourth the memory that
       <https://hackage.haskell.org/package/markdown markdown>
       uses, and less than a tenth the memory that
       <https://hackage.haskell.org/package/pandoc pandoc>
       uses.
   .
-  -   __Robustness:__ cmark can handle whatever is thrown
+  -   Robustness: cmark can handle whatever is thrown
       at it, without the exponential blowups in parsing
       time one can sometimes get with other libraries.
       (The input @bench\/full-sample.md@, for example,
@@ -49,10 +47,10 @@ description:
       <https://hackage.haskell.org/package/markdown markdown>
       to grind to a halt.)
   .
-  -   __Accuracy:__ cmark passes the CommonMark spec\'s
+  -   Accuracy: cmark passes the CommonMark spec\'s
       suite of over 500 conformance tests.
   .
-  -   __Standardization:__ Since there is a spec and a
+  -   Standardization: Since there is a spec and a
       comprehensive suite of tests, we can have a high
       degree of confidence that any two CommonMark
       implementations will behave the same. Thus, for
@@ -61,7 +59,7 @@ description:
       <http://github.com/jgm/commonmark.js commonmark.js>
       for client-side previewing.
   .
-  -   __Ease of installation:__ cmark is portable and has
+  -   Ease of installation: cmark is portable and has
       minimal dependencies.
   .
   cmark does not provide Haskell versions of the whole
@@ -72,12 +70,12 @@ description:
   CommonMark to a @Node@ tree that can be processed
   further using Haskell.
   .
-  __A note on security:__ This library does not attempt
+  A note on security: This library does not attempt
   to sanitize HTML output. We recommend using
   <https://hackage.haskell.org/package/xss-sanitize xss-sanitize>
   to filter the output.
   .
-  __A note on stability:__ There is a good chance the API
+  A note on stability: There is a good chance the API
   will change significantly after this early release.
 
 homepage:            https://github.com/jgm/commonmark-hs
