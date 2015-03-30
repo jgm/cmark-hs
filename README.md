@@ -3,8 +3,9 @@ cmark-hs
 
 This package provides Haskell bindings for [libcmark], the reference
 parser for [CommonMark], a fully specified variant of Markdown.
-It includes sources for [libcmark] (version 0.18.1) and does not
-require prior installation of the C library.
+It includes sources for [libcmark] (as of commit 8a04d10, implementing
+version 0.18 of the spec) and does not require prior installation of
+the C library.
 
 cmark provides the following advantages over existing Markdown
 libraries for Haskell:
