@@ -9,6 +9,7 @@
 #include "node.h"
 #include "buffer.h"
 #include "utf8.h"
+#include "scanners.h"
 
 // Functions to convert cmark_nodes to commonmark strings.
 
@@ -39,23 +40,44 @@ static inline void blankline(struct render_state *state)
 	}
 }
 
+typedef enum  {
+	LITERAL,
+	NORMAL,
+	TITLE,
+	URL
+} escaping;
+
 static inline bool
-needs_escaping(int32_t c, unsigned char next_c, struct render_state *state)
+needs_escaping(escaping escape,
+	       int32_t c,
+	       unsigned char next_c,
+	       struct render_state *state)
 {
-	return (c == '*' || c == '_' || c == '[' || c == ']' ||
-		c == '<' || c == '>' || c == '\\' ||
-		(c == '&' && isalpha(next_c)) ||
-		(c == '!' && next_c == '[') ||
-		(state->begin_line &&
-		 (c == '-' || c == '+' || c == '#' || c == '=')) ||
-		((c == '.' || c == ')') &&
-		 isdigit(state->buffer->ptr[state->buffer->size - 1])));
+	if (escape == NORMAL) {
+		return (c == '*' || c == '_' || c == '[' || c == ']' ||
+			c == '<' || c == '>' || c == '\\' || c == '`' ||
+			(c == '&' && isalpha(next_c)) ||
+			(c == '!' && next_c == '[') ||
+			(state->begin_line &&
+			 (c == '-' || c == '+' || c == '#' || c == '=')) ||
+			(c == '#' && (isspace(next_c) || next_c == '\0')) ||
+			((c == '.' || c == ')') &&
+			 isdigit(state->buffer->ptr[state->buffer->size - 1])));
+	} else if (escape == TITLE) {
+		return (c == '`' || c == '<' || c == '>' || c == '"' ||
+			c == '\\');
+	} else if (escape == URL) {
+		return (c == '`' || c == '<' || c == '>' || isspace(c) ||
+			c == '\\' || c == ')' || c == '(');
+	} else {
+		return false;
+	}
 }
 
 static inline void out(struct render_state *state,
 		       cmark_chunk str,
 		       bool wrap,
-		       bool escape)
+		       escaping escape)
 {
 	unsigned char* source = str.data;
 	int length = str.len;
@@ -114,11 +136,16 @@ static inline void out(struct render_state *state,
 			state->column = 0;
 			state->begin_line = true;
 			state->last_breakable = 0;
-		} else if (escape &&
-			   needs_escaping(c, nextc, state)) {
-			cmark_strbuf_putc(state->buffer, '\\');
-			utf8proc_encode_char(c, state->buffer);
-			state->column += 2;
+		} else if (needs_escaping(escape, c, nextc, state)) {
+			if (isspace(c)) {
+				// use percent encoding for spaces
+				cmark_strbuf_printf(state->buffer, "%%%2x", c);
+				state->column += 3;
+			} else {
+				cmark_strbuf_putc(state->buffer, '\\');
+				utf8proc_encode_char(c, state->buffer);
+				state->column += 2;
+			}
 			state->begin_line = false;
 		} else {
 			utf8proc_encode_char(c, state->buffer);
@@ -155,7 +182,7 @@ static inline void out(struct render_state *state,
 static void lit(struct render_state *state, char *s, bool wrap)
 {
 	cmark_chunk str = cmark_chunk_literal(s);
-	out(state, str, wrap, false);
+	out(state, str, wrap, LITERAL);
 }
 
 static int
@@ -164,7 +191,7 @@ longest_backtick_sequence(cmark_chunk *code)
 	int longest = 0;
 	int current = 0;
 	int i = 0;
-	while (i < code->len) {
+	while (i <= code->len) {
 		if (code->data[i] == '`') {
 			current++;
 		} else {
@@ -179,10 +206,77 @@ longest_backtick_sequence(cmark_chunk *code)
 }
 
 static int
+shortest_unused_backtick_sequence(cmark_chunk *code)
+{
+	int32_t used = 1;
+	int current = 0;
+	int i = 0;
+	while (i <= code->len) {
+		if (code->data[i] == '`') {
+			current++;
+		} else {
+			if (current) {
+				used |= (1 << current);
+			}
+			current = 0;
+		}
+		i++;
+	}
+	// return number of first bit that is 0:
+	i = 0;
+	while (used & 1) {
+		used = used >> 1;
+		i++;
+	}
+	return i;
+}
+
+static bool
+is_autolink(cmark_node *node)
+{
+	const char *title;
+	const char *url;
+
+	if (node->type != CMARK_NODE_LINK) {
+		return false;
+	}
+
+	url = cmark_node_get_url(node);
+	if (url == NULL ||
+	    _scan_scheme((unsigned char *)url) == 0) {
+		return false;
+	}
+
+	title = cmark_node_get_title(node);
+	// if it has a title, we can't treat it as an autolink:
+	if (title != NULL && strnlen(title, 1) > 0) {
+		return false;
+	}
+	cmark_consolidate_text_nodes(node);
+	return (strncmp(url,
+			(char*)node->as.literal.data,
+			node->as.literal.len) == 0);
+}
+
+// if node is a block node, returns node.
+// otherwise returns first block-level node that is an ancestor of node.
+static cmark_node*
+get_containing_block(cmark_node *node)
+{
+	while (node &&
+	       (node->type < CMARK_NODE_FIRST_BLOCK ||
+		node->type > CMARK_NODE_LAST_BLOCK)) {
+		node = node->parent;
+	}
+	return node;
+}
+
+static int
 S_render_node(cmark_node *node, cmark_event_type ev_type,
               struct render_state *state)
 {
 	cmark_node *tmp;
+	cmark_chunk *code;
 	int list_number;
 	cmark_delim_type list_delim;
 	int numticks;
@@ -191,11 +285,23 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 	const char *info;
 	const char *title;
 	char listmarker[64];
+	char *emph_delim;
 	int marker_width;
 
-	state->in_tight_list_item =
-		node->type == CMARK_NODE_ITEM &&
-		cmark_node_get_list_tight(node->parent);
+	// Don't adjust tight list status til we've started the list.
+	// Otherwise we loose the blank line between a paragraph and
+	// a following list.
+	if (!(node->type == CMARK_NODE_ITEM && node->prev == NULL &&
+	      entering)) {
+			tmp = get_containing_block(node);
+			state->in_tight_list_item =
+				(tmp->type == CMARK_NODE_ITEM &&
+				 cmark_node_get_list_tight(tmp->parent)) ||
+				(tmp &&
+				 tmp->parent &&
+				 tmp->parent->type == CMARK_NODE_ITEM &&
+				 cmark_node_get_list_tight(tmp->parent->parent));
+	}
 
 	switch (node->type) {
 	case CMARK_NODE_DOCUMENT:
@@ -216,6 +322,14 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 		break;
 
 	case CMARK_NODE_LIST:
+		if (!entering && node->next &&
+		    (node->next->type == CMARK_NODE_CODE_BLOCK ||
+		     node->next->type == CMARK_NODE_LIST)) {
+			// this ensures 2 blank lines after list,
+			// if before code block or list:
+			lit(state, "\n", false);
+			state->need_cr = 0;
+		}
 		break;
 
 	case CMARK_NODE_ITEM:
@@ -237,12 +351,12 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 				 list_delim == CMARK_PAREN_DELIM ?
 				 ")" : ".",
 				 list_number < 10 ? "  " : " ");
-			marker_width = strlen(listmarker);
+			marker_width = strnlen(listmarker, 63);
 		}
 		if (entering) {
 			if (cmark_node_get_list_type(node->parent) ==
 			    CMARK_BULLET_LIST) {
-				lit(state, "- ", false);
+				lit(state, "* ", false);
 				cmark_strbuf_puts(state->prefix, "  ");
 			} else {
 				lit(state, listmarker, false);
@@ -274,16 +388,24 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 	case CMARK_NODE_CODE_BLOCK:
 		blankline(state);
 		info = cmark_node_get_fence_info(node);
-		if (info == NULL || strlen(info) == 0) {
-			// use indented form if no info
+		code = &node->as.code.literal;
+		// use indented form if no info, and code doesn't
+		// begin or end with a blank line, and code isn't
+		// first thing in a list item
+		if ((info == NULL || strnlen(info, 1) == 0) &&
+		    (code->len > 2 &&
+		     !isspace(code->data[0]) &&
+		     !(isspace(code->data[code->len - 1]) &&
+		       isspace(code->data[code->len - 2]))) &&
+		    !(node->prev == NULL && node->parent &&
+		      node->parent->type == CMARK_NODE_ITEM)) {
 			lit(state, "    ", false);
 			cmark_strbuf_puts(state->prefix, "    ");
-			out(state, node->as.code.literal, false, false);
+			out(state, node->as.code.literal, false, LITERAL);
 			cmark_strbuf_truncate(state->prefix,
 					      state->prefix->size - 4);
 		} else {
-			numticks = longest_backtick_sequence(&node->as.code.literal)
-				+ 1;
+			numticks = longest_backtick_sequence(code) + 1;
 			if (numticks < 3) {
 				numticks = 3;
 			}
@@ -291,9 +413,9 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 				lit(state, "`", false);
 			}
 			lit(state, " ", false);
-			out(state, cmark_chunk_literal(info), false, false);
+			out(state, cmark_chunk_literal(info), false, LITERAL);
 			cr(state);
-			out(state, node->as.code.literal, false, true);
+			out(state, node->as.code.literal, false, LITERAL);
 			cr(state);
 			for (i = 0; i < numticks; i++) {
 				lit(state, "`", false);
@@ -304,7 +426,7 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 
 	case CMARK_NODE_HTML:
 		blankline(state);
-		out(state, node->as.literal, false, false);
+		out(state, node->as.literal, false, LITERAL);
 		blankline(state);
 		break;
 
@@ -321,7 +443,7 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 		break;
 
 	case CMARK_NODE_TEXT:
-		out(state, node->as.literal, true, true);
+		out(state, node->as.literal, true, NORMAL);
 		break;
 
 	case CMARK_NODE_LINEBREAK:
@@ -332,19 +454,24 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 		break;
 
 	case CMARK_NODE_SOFTBREAK:
-		lit(state, " ", true);
+		if (state->width == 0) {
+			cr(state);
+		} else {
+			lit(state, " ", true);
+		}
 		break;
 
 	case CMARK_NODE_CODE:
-		numticks = longest_backtick_sequence(&node->as.literal) + 1;
+		code = &node->as.literal;
+		numticks = shortest_unused_backtick_sequence(code);
 		for (i = 0; i < numticks; i++) {
 			lit(state, "`", false);
 		}
-		if (numticks > 1) {
+		if (code->len == 0 || code->data[0] == '`') {
 			lit(state, " ", false);
 		}
-		out(state, node->as.literal, true, false);
-		if (numticks > 1) {
+		out(state, node->as.literal, true, LITERAL);
+		if (code->len == 0 || code->data[code->len - 1] == '`') {
 			lit(state, " ", false);
 		}
 		for (i = 0; i < numticks; i++) {
@@ -353,7 +480,7 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 		break;
 
 	case CMARK_NODE_INLINE_HTML:
-		out(state, node->as.literal, true, false);
+		out(state, node->as.literal, false, LITERAL);
 		break;
 
 	case CMARK_NODE_STRONG:
@@ -365,26 +492,56 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 		break;
 
 	case CMARK_NODE_EMPH:
-		if (entering) {
-			lit(state, "*", false);
+		// If we have EMPH(EMPH(x)), we need to use *_x_*
+		// because **x** is STRONG(x):
+		if (node->parent && node->parent->type == CMARK_NODE_EMPH &&
+		    node->next == NULL && node->prev == NULL) {
+			emph_delim = "_";
 		} else {
-			lit(state, "*", false);
+			emph_delim = "*";
+		}
+		if (entering) {
+			lit(state, emph_delim, false);
+		} else {
+			lit(state, emph_delim, false);
 		}
 		break;
 
 	case CMARK_NODE_LINK:
-		if (entering) {
-			lit(state, "[", false);
-		} else {
-			lit(state, "](", false);
-			out(state, cmark_chunk_literal(cmark_node_get_url(node)), false, true);
-			title = cmark_node_get_title(node);
-			if (title && strlen(title) > 0) {
-				lit(state, " \"", true);
-				out(state, cmark_chunk_literal(title), false, true);
-				lit(state, "\"", false);
+		if (is_autolink(node)) {
+			if (entering) {
+				lit(state, "<", false);
+				if (strncmp(cmark_node_get_url(node),
+					    "mailto:", 7) == 0) {
+					lit(state,
+					    (char *)cmark_node_get_url(node) + 7,
+					    false);
+				} else {
+					lit(state,
+					    (char *)cmark_node_get_url(node),
+					    false);
+				}
+				lit(state, ">", false);
+				// return signal to skip contents of node...
+				return 0;
 			}
-			lit(state, ")", false);
+		} else {
+			if (entering) {
+				lit(state, "[", false);
+			} else {
+				lit(state, "](", false);
+				out(state,
+				    cmark_chunk_literal(cmark_node_get_url(node)),
+				    false, URL);
+				title = cmark_node_get_title(node);
+				if (title && strnlen(title, 1) > 0) {
+					lit(state, " \"", true);
+					out(state, cmark_chunk_literal(title),
+					    false, TITLE);
+					lit(state, "\"", false);
+				}
+				lit(state, ")", false);
+			}
 		}
 		break;
 
@@ -393,11 +550,11 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 			lit(state, "![", false);
 		} else {
 			lit(state, "](", false);
-			out(state, cmark_chunk_literal(cmark_node_get_url(node)), false, true);
+			out(state, cmark_chunk_literal(cmark_node_get_url(node)), false, URL);
 			title = cmark_node_get_title(node);
-			if (title && strlen(title) > 0) {
+			if (title && strnlen(title, 1) > 0) {
 				lit(state, " \"", true);
-				out(state, cmark_chunk_literal(title), false, true);
+				out(state, cmark_chunk_literal(title), false, TITLE);
 				lit(state, "\"", false);
 			}
 			lit(state, ")", false);
@@ -429,7 +586,12 @@ char *cmark_render_commonmark(cmark_node *root, int options, int width)
 
 	while ((ev_type = cmark_iter_next(iter)) != CMARK_EVENT_DONE) {
 		cur = cmark_iter_get_node(iter);
-		S_render_node(cur, ev_type, &state);
+		if (!S_render_node(cur, ev_type, &state)) {
+			// a false value causes us to skip processing
+			// the node's contents.  this is used for
+			// autolinks.
+			cmark_iter_reset(iter, cur, CMARK_EVENT_EXIT);
+		}
 	}
 	result = (char *)cmark_strbuf_detach(&commonmark);
 
