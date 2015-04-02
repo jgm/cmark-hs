@@ -26,4 +26,4 @@ script:
  - cabal-$CABALVER build --ghc-options="$GHCOPTS"  # this builds all libraries and executables (including tests/benchmarks)
  - cabal-$CABALVER test
  - cabal-$CABALVER check
- - packdeps cmark.cabal
+ - $HOME/.cabal/bin/packdeps cmark.cabal
