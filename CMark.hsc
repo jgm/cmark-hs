@@ -26,13 +26,15 @@ module CMark (
 
 import Foreign
 import Foreign.C.Types
-import Foreign.C.String (CString, withCString)
+import Foreign.C.String (CString)
 import qualified System.IO.Unsafe as Unsafe
 import GHC.Generics (Generic)
 import Data.Data (Data)
 import Data.Typeable (Typeable)
-import Data.Text (Text, empty, unpack)
+import Data.Text (Text, empty)
 import qualified Data.Text.Foreign as TF
+import qualified Data.ByteString as B
+import Data.Text.Encoding (encodeUtf8)
 import Control.Applicative ((<$>), (<*>))
 
 #include <cmark.h>
@@ -324,7 +326,7 @@ totext str
   | otherwise      = TF.peekCStringLen (str, c_strlen str)
 
 fromtext :: Text -> CString
-fromtext t = io $! withCString (unpack t) return
+fromtext t = io $! B.useAsCString (encodeUtf8 t) return
 
 foreign import ccall "string.h strlen"
     c_strlen :: CString -> Int
