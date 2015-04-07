@@ -27,7 +27,7 @@ module CMark (
 import Foreign
 import Foreign.C.Types
 import Foreign.C.String (CString)
-import qualified System.IO.Unsafe as Unsafe
+import System.IO.Unsafe (unsafePerformIO)
 import GHC.Generics (Generic)
 import Data.Data (Data)
 import Data.Typeable (Typeable)
@@ -57,14 +57,14 @@ commonmarkToMan = commonmarkToX c_cmark_render_man
 -- | Convert CommonMark formatted text to a structured 'Node' tree,
 -- which can be transformed or rendered using Haskell code.
 commonmarkToNode :: [CMarkOption] -> Text -> Node
-commonmarkToNode opts s = io $ do
+commonmarkToNode opts s = unsafePerformIO $ do
   nptr <- TF.withCStringLen s $! \(ptr, len) ->
              c_cmark_parse_document ptr len (combineOptions opts)
   fptr <- newForeignPtr c_cmark_node_free nptr
   withForeignPtr fptr toNode
 
 nodeToCommonmark :: [CMarkOption] -> Int -> Node -> Text
-nodeToCommonmark opts width node = io $ do
+nodeToCommonmark opts width node = unsafePerformIO $ do
   nptr <- fromNode node
   fptr <- newForeignPtr c_cmark_node_free nptr
   withForeignPtr fptr $ \ptr -> do
@@ -75,14 +75,15 @@ commonmarkToX :: (NodePtr -> CInt -> IO CString)
               -> [CMarkOption]
               -> Text
               -> Text
-commonmarkToX renderer opts s = io $ TF.withCStringLen s $ \(ptr, len) -> do
-  let opts' = combineOptions opts
-  nptr <- c_cmark_parse_document ptr len opts'
-  fptr <- newForeignPtr c_cmark_node_free nptr
-  withForeignPtr fptr $ \p -> do
-    str <- renderer p opts'
-    t <- TF.peekCStringLen $! (str, c_strlen str)
-    return t
+commonmarkToX renderer opts s = unsafePerformIO $
+  TF.withCStringLen s $ \(ptr, len) -> do
+    let opts' = combineOptions opts
+    nptr <- c_cmark_parse_document ptr len opts'
+    fptr <- newForeignPtr c_cmark_node_free nptr
+    withForeignPtr fptr $ \p -> do
+      str <- renderer p opts'
+      t <- TF.peekCStringLen $! (str, c_strlen str)
+      return t
 
 type NodePtr = Ptr ()
 
@@ -316,9 +317,6 @@ fromNode (Node _ nodeType children) = do
             LINEBREAK   -> c_cmark_node_new (#const CMARK_NODE_LINEBREAK)
   mapM_ (\child -> fromNode child >>= c_cmark_node_append_child node) children
   return node
-
-io :: IO a -> a
-io = Unsafe.unsafePerformIO
 
 totext :: CString -> IO Text
 totext str
