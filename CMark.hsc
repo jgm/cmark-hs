@@ -27,7 +27,7 @@ module CMark (
 import Foreign
 import Foreign.C.Types
 import Foreign.C.String (CString)
-import System.IO.Unsafe (unsafePerformIO)
+import qualified System.IO.Unsafe as Unsafe
 import GHC.Generics (Generic)
 import Data.Data (Data)
 import Data.Typeable (Typeable)
@@ -57,14 +57,14 @@ commonmarkToMan = commonmarkToX c_cmark_render_man
 -- | Convert CommonMark formatted text to a structured 'Node' tree,
 -- which can be transformed or rendered using Haskell code.
 commonmarkToNode :: [CMarkOption] -> Text -> Node
-commonmarkToNode opts s = unsafePerformIO $ do
+commonmarkToNode opts s = Unsafe.unsafePerformIO $ do
   nptr <- TF.withCStringLen s $! \(ptr, len) ->
              c_cmark_parse_document ptr len (combineOptions opts)
   fptr <- newForeignPtr c_cmark_node_free nptr
   withForeignPtr fptr toNode
 
 nodeToCommonmark :: [CMarkOption] -> Int -> Node -> Text
-nodeToCommonmark opts width node = unsafePerformIO $ do
+nodeToCommonmark opts width node = Unsafe.unsafePerformIO $ do
   nptr <- fromNode node
   fptr <- newForeignPtr c_cmark_node_free nptr
   withForeignPtr fptr $ \ptr -> do
@@ -75,7 +75,7 @@ commonmarkToX :: (NodePtr -> CInt -> IO CString)
               -> [CMarkOption]
               -> Text
               -> Text
-commonmarkToX renderer opts s = unsafePerformIO $
+commonmarkToX renderer opts s = Unsafe.unsafePerformIO $
   TF.withCStringLen s $ \(ptr, len) -> do
     let opts' = combineOptions opts
     nptr <- c_cmark_parse_document ptr len opts'
