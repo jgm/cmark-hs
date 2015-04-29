@@ -1,3 +1,11 @@
+cmark 0.3.2 (28 Apr 2015)
+
+  * Updated libcmark C sources to 0.19.0.
+  * Fixes to avoid warning for earlier ghc versions.
+  * Refactored, removing the `io` convenience function.
+  * Removed unnecessary `unsafePerformIO` on `fromtext`.
+  * `fromtext`: use `ByteString.useAsCString` + explicit `encodeUtf8`.
+
 cmark 0.3.1 (29 Mar 2015)
 
   * Added nodeToCommonmark.
