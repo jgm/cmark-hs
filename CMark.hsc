@@ -6,6 +6,9 @@ module CMark (
   , commonmarkToXml
   , commonmarkToMan
   , commonmarkToNode
+  , nodeToHtml
+  , nodeToXml
+  , nodeToMan
   , nodeToCommonmark
   , optSourcePos
   , optNormalize
@@ -63,12 +66,31 @@ commonmarkToNode opts s = Unsafe.unsafePerformIO $ do
   fptr <- newForeignPtr c_cmark_node_free nptr
   withForeignPtr fptr toNode
 
+nodeToHtml :: [CMarkOption] -> Node -> Text
+nodeToHtml = nodeToX c_cmark_render_html
+
+nodeToXml :: [CMarkOption] -> Node -> Text
+nodeToXml = nodeToX c_cmark_render_xml
+
+nodeToMan :: [CMarkOption] -> Node -> Text
+nodeToMan = nodeToX c_cmark_render_man
+
 nodeToCommonmark :: [CMarkOption] -> Int -> Node -> Text
 nodeToCommonmark opts width node = Unsafe.unsafePerformIO $ do
   nptr <- fromNode node
   fptr <- newForeignPtr c_cmark_node_free nptr
   withForeignPtr fptr $ \ptr -> do
     cstr <- c_cmark_render_commonmark ptr (combineOptions opts) width
+    TF.peekCStringLen (cstr, c_strlen cstr)
+
+type Renderer = NodePtr -> CInt -> IO CString
+
+nodeToX :: Renderer -> [CMarkOption] -> Node -> Text
+nodeToX renderer opts node = Unsafe.unsafePerformIO $ do
+  nptr <- fromNode node
+  fptr <- newForeignPtr c_cmark_node_free nptr
+  withForeignPtr fptr $ \ptr -> do
+    cstr <- renderer ptr (combineOptions opts)
     TF.peekCStringLen (cstr, c_strlen cstr)
 
 commonmarkToX :: (NodePtr -> CInt -> IO CString)
