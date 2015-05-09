@@ -7,6 +7,7 @@ module CMark (
   , commonmarkToMan
   , commonmarkToNode
   , nodeToCommonmark
+  , nodeToHtml
   , optSourcePos
   , optNormalize
   , optHardBreaks
@@ -69,6 +70,14 @@ nodeToCommonmark opts width node = Unsafe.unsafePerformIO $ do
   fptr <- newForeignPtr c_cmark_node_free nptr
   withForeignPtr fptr $ \ptr -> do
     cstr <- c_cmark_render_commonmark ptr (combineOptions opts) width
+    TF.peekCStringLen (cstr, c_strlen cstr)
+
+nodeToHtml :: [CMarkOption] -> Node -> Text
+nodeToHtml opts node = Unsafe.unsafePerformIO $ do
+  nptr <- fromNode node
+  fptr <- newForeignPtr c_cmark_node_free nptr
+  withForeignPtr fptr $ \ptr -> do
+    cstr <- c_cmark_render_html ptr (combineOptions opts)
     TF.peekCStringLen (cstr, c_strlen cstr)
 
 commonmarkToX :: (NodePtr -> CInt -> IO CString)
