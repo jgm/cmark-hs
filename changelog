@@ -1,3 +1,8 @@
+cmark 0.3.3 (26 May 2015)
+
+  * Added `nodeToHtml`, `nodeToMan`, `nodeToXml`.
+  * Added version bounds for text (Albert Krewinkel).
+
 cmark 0.3.2 (28 Apr 2015)
 
   * Updated libcmark C sources to 0.19.0.
