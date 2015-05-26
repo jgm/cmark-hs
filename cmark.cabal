@@ -1,5 +1,5 @@
 name:                cmark
-version:             0.3.2
+version:             0.3.2.1
 synopsis:            Fast, accurate CommonMark (Markdown) parser and renderer
 description:
   This package provides Haskell bindings for
@@ -117,7 +117,9 @@ Source-repository head
 
 library
   exposed-modules:     CMark
-  build-depends:       base >=4.5 && < 4.9, text, bytestring
+  build-depends:       base >=4.5 && < 4.9,
+                       text >= 1.0 && < 1.3,
+                       bytestring
   if impl(ghc < 7.6)
     build-depends:     ghc-prim >= 0.2
   default-language:    Haskell2010
