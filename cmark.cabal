@@ -149,13 +149,12 @@ benchmark bench-cmark
   type:             exitcode-stdio-1.0
   hs-source-dirs:   bench
   main-is:          Bench.hs
-  build-depends:    base, text, criterion, cmark,
+  build-depends:    base, text, cmark, criterion,
                     sundown >= 0.6 && < 0.7,
-                    pandoc >= 1.13.2 && < 1.14,
                     cheapskate >= 0.1 && < 0.2,
                     markdown >= 0.1 && < 0.2,
                     discount >= 0.1 && < 0.2,
-                    blaze-html >= 0.7 && < 0.8
+                    blaze-html >= 0.7 && < 0.9
   ghc-options:      -O2
   default-language: Haskell2010
 

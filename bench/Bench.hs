@@ -1,4 +1,3 @@
-import qualified Text.Pandoc as Pandoc
 import qualified Cheapskate as Cheapskate
 import qualified Cheapskate.Html as CheapskateHtml
 import qualified CMark as CMark
@@ -11,24 +10,21 @@ import Data.Text as T
 import Data.Text.Lazy (fromChunks, toChunks)
 import Data.Text.IO as T
 import Criterion.Main
-import Criterion.Config
+import Criterion.Monad
 import System.Environment (getArgs)
 
 main :: IO ()
 main = do
-  args <- getArgs
-  (conf,_) <- parseArgs defaultConfig defaultOptions args
   sample <- T.readFile "bench/sample.md"
-  defaultMainWith conf (return ()) [
-      mkBench "cmark" (CMark.commonmarkToHtml []) sample
-    , mkBench "cheapskate" (T.concat . toChunks . Blaze.renderHtml . CheapskateHtml.renderDoc . Cheapskate.markdown Cheapskate.def) sample
+  defaultMain [
+      mkBench "cheapskate" (T.concat . toChunks . Blaze.renderHtml . CheapskateHtml.renderDoc . Cheapskate.markdown Cheapskate.def) sample
     , mkBench "discount" (Discount.parseMarkdownUtf8 []) sample
-    , mkBench "pandoc" (T.concat . toChunks . Blaze.renderHtml . Pandoc.writeHtml Pandoc.def . Pandoc.readMarkdown Pandoc.def . T.unpack) sample
     , mkBench "markdown" (T.concat . toChunks . Blaze.renderHtml . Markdown.markdown Markdown.def . fromChunks . (:[])) sample
-    ]
+    , mkBench "cmark" (CMark.commonmarkToHtml []) sample
+     ]
 
--- Note: when full-sample.md rather than sample.md is used, pandoc and markdown
--- hang (> 1 minute).
+-- Note: when full-sample.md rather than sample.md is used markdown
+-- hangs (> 1 minute).
 
 -- even with sample.md, sundown gives this error
 -- , mkBench "sundown" (Sundown.renderHtml Sundown.noExtensions Sundown.noHtmlModes False Nothing) sample
