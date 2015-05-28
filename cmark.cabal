@@ -148,7 +148,7 @@ library
 benchmark bench-cmark
   type:             exitcode-stdio-1.0
   hs-source-dirs:   bench
-  main-is:          Bench.hs
+  main-is:          bench-cmark.hs
   build-depends:    base, text, cmark, criterion,
                     sundown >= 0.6 && < 0.7,
                     cheapskate >= 0.1 && < 0.2,
