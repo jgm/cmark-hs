@@ -1,12 +1,12 @@
 name:                cmark
-version:             0.3.3.1
+version:             0.3.4
 synopsis:            Fast, accurate CommonMark (Markdown) parser and renderer
 description:
   This package provides Haskell bindings for
   <https://github.com/jgm/cmark libcmark>, the reference
   parser for <http://commonmark.org CommonMark>, a fully
   specified variant of Markdown. It includes sources for
-  libcmark (0.19.0) and does not require prior installation of the
+  libcmark (0.20.0) and does not require prior installation of the
   C library.
   .
   cmark provides the following advantages over existing
