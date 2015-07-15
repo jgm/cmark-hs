@@ -1,3 +1,13 @@
+cmark 0.4 (14 Jul 2015)
+
+  * API changes:
+    + Added `commonmarkToLaTeX`, `nodeToLaTeX`, `optSafe`.
+    + Changed type of `commonmarkToMan` and `nodeToMan`,
+      adding `Maybe Int` param for width.
+    + Changed type of `nodeToCommonMark`, changing the `Int` width
+      parameter to a `Maybe Int`.
+  * Updated to cmark 0.21 sources.
+
 cmark 0.3.4 (08 Jun 2015)
 
   * Updated to libcmark 0.20.0.

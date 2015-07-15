@@ -5,15 +5,18 @@ module CMark (
     commonmarkToHtml
   , commonmarkToXml
   , commonmarkToMan
+  , commonmarkToLaTeX
   , commonmarkToNode
   , nodeToHtml
   , nodeToXml
   , nodeToMan
+  , nodeToLaTeX
   , nodeToCommonmark
   , optSourcePos
   , optNormalize
   , optHardBreaks
   , optSmart
+  , optSafe
   , Node(..)
   , NodeType(..)
   , PosInfo(..)
@@ -31,6 +34,7 @@ import Foreign
 import Foreign.C.Types
 import Foreign.C.String (CString)
 import qualified System.IO.Unsafe as Unsafe
+import Data.Maybe (fromMaybe)
 import GHC.Generics (Generic)
 import Data.Data (Data)
 import Data.Typeable (Typeable)
@@ -45,17 +49,24 @@ import Control.Applicative ((<$>), (<*>))
 -- | Convert CommonMark formatted text to Html, using cmark's
 -- built-in renderer.
 commonmarkToHtml :: [CMarkOption] -> Text -> Text
-commonmarkToHtml = commonmarkToX c_cmark_render_html
+commonmarkToHtml opts = commonmarkToX render_html opts Nothing
+  where render_html n o _ = c_cmark_render_html n o
 
 -- | Convert CommonMark formatted text to CommonMark XML, using cmark's
 -- built-in renderer.
 commonmarkToXml :: [CMarkOption] -> Text -> Text
-commonmarkToXml = commonmarkToX c_cmark_render_xml
+commonmarkToXml opts = commonmarkToX render_xml opts Nothing
+  where render_xml n o _ = c_cmark_render_xml n o
 
 -- | Convert CommonMark formatted text to groff man, using cmark's
 -- built-in renderer.
-commonmarkToMan :: [CMarkOption] -> Text -> Text
+commonmarkToMan :: [CMarkOption] -> Maybe Int -> Text -> Text
 commonmarkToMan = commonmarkToX c_cmark_render_man
+
+-- | Convert CommonMark formatted text to latex, using cmark's
+-- built-in renderer.
+commonmarkToLaTeX :: [CMarkOption] -> Maybe Int -> Text -> Text
+commonmarkToLaTeX = commonmarkToX c_cmark_render_latex
 
 -- | Convert CommonMark formatted text to a structured 'Node' tree,
 -- which can be transformed or rendered using Haskell code.
@@ -67,43 +78,44 @@ commonmarkToNode opts s = Unsafe.unsafePerformIO $ do
   withForeignPtr fptr toNode
 
 nodeToHtml :: [CMarkOption] -> Node -> Text
-nodeToHtml = nodeToX c_cmark_render_html
+nodeToHtml opts = nodeToX render_html opts Nothing
+  where render_html n o _ = c_cmark_render_html n o
 
 nodeToXml :: [CMarkOption] -> Node -> Text
-nodeToXml = nodeToX c_cmark_render_xml
+nodeToXml opts = nodeToX render_xml opts Nothing
+  where render_xml n o _ = c_cmark_render_xml n o
 
-nodeToMan :: [CMarkOption] -> Node -> Text
+nodeToMan :: [CMarkOption] -> Maybe Int -> Node -> Text
 nodeToMan = nodeToX c_cmark_render_man
 
-nodeToCommonmark :: [CMarkOption] -> Int -> Node -> Text
-nodeToCommonmark opts width node = Unsafe.unsafePerformIO $ do
+nodeToLaTeX :: [CMarkOption] -> Maybe Int -> Node -> Text
+nodeToLaTeX = nodeToX c_cmark_render_latex
+
+nodeToCommonmark :: [CMarkOption] -> Maybe Int -> Node -> Text
+nodeToCommonmark = nodeToX c_cmark_render_commonmark
+
+type Renderer = NodePtr -> CInt -> Int -> IO CString
+
+nodeToX :: Renderer -> [CMarkOption] -> Maybe Int -> Node -> Text
+nodeToX renderer opts mbWidth node = Unsafe.unsafePerformIO $ do
   nptr <- fromNode node
   fptr <- newForeignPtr c_cmark_node_free nptr
   withForeignPtr fptr $ \ptr -> do
-    cstr <- c_cmark_render_commonmark ptr (combineOptions opts) width
+    cstr <- renderer ptr (combineOptions opts) (fromMaybe 0 mbWidth)
     TF.peekCStringLen (cstr, c_strlen cstr)
 
-type Renderer = NodePtr -> CInt -> IO CString
-
-nodeToX :: Renderer -> [CMarkOption] -> Node -> Text
-nodeToX renderer opts node = Unsafe.unsafePerformIO $ do
-  nptr <- fromNode node
-  fptr <- newForeignPtr c_cmark_node_free nptr
-  withForeignPtr fptr $ \ptr -> do
-    cstr <- renderer ptr (combineOptions opts)
-    TF.peekCStringLen (cstr, c_strlen cstr)
-
-commonmarkToX :: (NodePtr -> CInt -> IO CString)
+commonmarkToX :: Renderer
               -> [CMarkOption]
+              -> Maybe Int
               -> Text
               -> Text
-commonmarkToX renderer opts s = Unsafe.unsafePerformIO $
+commonmarkToX renderer opts mbWidth s = Unsafe.unsafePerformIO $
   TF.withCStringLen s $ \(ptr, len) -> do
     let opts' = combineOptions opts
     nptr <- c_cmark_parse_document ptr len opts'
     fptr <- newForeignPtr c_cmark_node_free nptr
     withForeignPtr fptr $ \p -> do
-      str <- renderer p opts'
+      str <- renderer p opts' (fromMaybe 0 mbWidth)
       t <- TF.peekCStringLen $! (str, c_strlen str)
       return t
 
@@ -171,21 +183,26 @@ newtype CMarkOption = CMarkOption { unCMarkOption :: CInt }
 combineOptions :: [CMarkOption] -> CInt
 combineOptions = foldr ((.|.) . unCMarkOption) 0
 
--- Include a @data-sourcepos@ attribute on block elements.
+-- | Include a @data-sourcepos@ attribute on block elements.
 optSourcePos :: CMarkOption
 optSourcePos = CMarkOption #const CMARK_OPT_SOURCEPOS
 
--- Render @softbreak@ elements as hard line breaks.
+-- | Render @softbreak@ elements as hard line breaks.
 optHardBreaks :: CMarkOption
 optHardBreaks = CMarkOption #const CMARK_OPT_HARDBREAKS
 
--- Normalize the document by consolidating adjacent text nodes.
+-- | Normalize the document by consolidating adjacent text nodes.
 optNormalize :: CMarkOption
 optNormalize = CMarkOption #const CMARK_OPT_NORMALIZE
 
--- Convert straight quotes to curly, @---@ to em-dash, @--@ to en-dash.
+-- | Convert straight quotes to curly, @---@ to em-dash, @--@ to en-dash.
 optSmart :: CMarkOption
 optSmart = CMarkOption #const CMARK_OPT_SMART
+
+-- | Suppress rendering of raw HTML and potentially dangerous URLs in links
+-- and images.
+optSafe :: CMarkOption
+optSafe = CMarkOption #const CMARK_OPT_SAFE
 
 ptrToNodeType :: NodePtr -> IO NodeType
 ptrToNodeType ptr = do
@@ -361,7 +378,10 @@ foreign import ccall "cmark.h cmark_render_xml"
     c_cmark_render_xml :: NodePtr -> CInt -> IO CString
 
 foreign import ccall "cmark.h cmark_render_man"
-    c_cmark_render_man :: NodePtr -> CInt -> IO CString
+    c_cmark_render_man :: NodePtr -> CInt -> Int -> IO CString
+
+foreign import ccall "cmark.h cmark_render_latex"
+    c_cmark_render_latex :: NodePtr -> CInt -> Int -> IO CString
 
 foreign import ccall "cmark.h cmark_render_commonmark"
     c_cmark_render_commonmark :: NodePtr -> CInt -> Int -> IO CString
