@@ -2,12 +2,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-
+#include "cmark_ctype.h"
 #include "config.h"
 #include "cmark.h"
 #include "node.h"
 #include "buffer.h"
 #include "houdini.h"
+#include "scanners.h"
 
 // Functions to convert cmark_nodes to HTML strings.
 
@@ -156,7 +157,7 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 		} else {
 			bufsize_t first_tag = 0;
 			while (first_tag < node->as.code.info.len &&
-			       node->as.code.info.data[first_tag] != ' ') {
+			       !cmark_isspace(node->as.code.info.data[first_tag])) {
 				first_tag += 1;
 			}
 
@@ -174,7 +175,13 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 
 	case CMARK_NODE_HTML:
 		cr(html);
-		cmark_strbuf_put(html, node->as.literal.data, node->as.literal.len);
+		if (options & CMARK_OPT_SAFE) {
+			cmark_strbuf_puts(html, "<!-- raw HTML omitted -->");
+		} else {
+			cmark_strbuf_put(html, node->as.literal.data,
+			                 node->as.literal.len);
+		}
+		cr(html);
 		break;
 
 	case CMARK_NODE_HRULE:
@@ -228,7 +235,12 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 		break;
 
 	case CMARK_NODE_INLINE_HTML:
-		cmark_strbuf_put(html, node->as.literal.data, node->as.literal.len);
+		if (options & CMARK_OPT_SAFE) {
+			cmark_strbuf_puts(html, "<!-- raw HTML omitted -->");
+		} else {
+			cmark_strbuf_put(html, node->as.literal.data,
+			                 node->as.literal.len);
+		}
 		break;
 
 	case CMARK_NODE_STRONG:
@@ -250,15 +262,19 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 	case CMARK_NODE_LINK:
 		if (entering) {
 			cmark_strbuf_puts(html, "<a href=\"");
-			houdini_escape_href(html, node->as.link.url.data,
-	                                    node->as.link.url.len);
+			if (!((options & CMARK_OPT_SAFE) &&
+			      scan_dangerous_url(&node->as.link.url, 0))) {
+				houdini_escape_href(html,
+				                    node->as.link.url.data,
+				                    node->as.link.url.len);
 
+			}
 			if (node->as.link.title.len) {
 				cmark_strbuf_puts(html, "\" title=\"");
-				escape_html(html, node->as.link.title.data,
+				escape_html(html,
+				            node->as.link.title.data,
 				            node->as.link.title.len);
 			}
-
 			cmark_strbuf_puts(html, "\">");
 		} else {
 			cmark_strbuf_puts(html, "</a>");
@@ -268,9 +284,13 @@ S_render_node(cmark_node *node, cmark_event_type ev_type,
 	case CMARK_NODE_IMAGE:
 		if (entering) {
 			cmark_strbuf_puts(html, "<img src=\"");
-			houdini_escape_href(html, node->as.link.url.data,
-		                            node->as.link.url.len);
+			if (!((options & CMARK_OPT_SAFE) &&
+			      scan_dangerous_url(&node->as.link.url, 0))) {
+				houdini_escape_href(html,
+				                    node->as.link.url.data,
+				                    node->as.link.url.len);
 
+			}
 			cmark_strbuf_puts(html, "\" alt=\"");
 			state->plain = node;
 		} else {

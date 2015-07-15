@@ -50,6 +50,12 @@ typedef struct {
 	delimiter *last_delim;
 } subject;
 
+static inline bool
+S_is_line_end_char(char c)
+{
+	return (c == '\n' || c == '\r');
+}
+
 static delimiter*
 S_insert_emph(subject *subj, delimiter *opener, delimiter *closer);
 
@@ -163,8 +169,6 @@ static void subject_from_buf(subject *e, cmark_strbuf *buffer,
 	e->pos = 0;
 	e->refmap = refmap;
 	e->last_delim = NULL;
-
-	cmark_chunk_rtrim(&e->input);
 }
 
 static inline int isbacktick(int c)
@@ -174,6 +178,9 @@ static inline int isbacktick(int c)
 
 static inline unsigned char peek_char(subject *subj)
 {
+	// NULL bytes should have been stripped out by now.  If they're
+	// present, it's a programming error:
+	assert(!(subj->pos < subj->input.len && subj->input.data[subj->pos] == 0));
 	return (subj->pos < subj->input.len) ? subj->input.data[subj->pos] : 0;
 }
 
@@ -190,6 +197,32 @@ static inline int is_eof(subject* subj)
 
 // Advance the subject.  Doesn't check for eof.
 #define advance(subj) (subj)->pos += 1
+
+static inline bool
+skip_spaces(subject *subj)
+{
+	bool skipped = false;
+	while (peek_char(subj) == ' ' || peek_char(subj) == '\t') {
+		advance(subj);
+		skipped = true;
+	}
+	return skipped;
+}
+
+static inline bool
+skip_line_end(subject *subj)
+{
+	bool seen_line_end_char = false;
+	if (peek_char(subj) == '\r') {
+		advance(subj);
+		seen_line_end_char = true;
+	}
+	if (peek_char(subj) == '\n') {
+		advance(subj);
+		seen_line_end_char = true;
+	}
+	return seen_line_end_char || is_eof(subj);
+}
 
 // Take characters while a predicate holds, and return a string.
 static inline cmark_chunk take_while(subject* subj, int (*f)(int))
@@ -326,10 +359,10 @@ static void print_delimiters(subject *subj)
 	delimiter *delim;
 	delim = subj->last_delim;
 	while (delim != NULL) {
-		printf("Item at %p: %d %d %d next(%p) prev(%p)\n",
-		       delim, delim->delim_char,
+		printf("Item at stack pos %p, text pos %d: %d %d %d next(%p) prev(%p)\n",
+		       (void*)delim, delim->position, delim->delim_char,
 		       delim->can_open, delim->can_close,
-		       delim->next, delim->previous);
+		       (void*)delim->next, (void*)delim->previous);
 		delim = delim->previous;
 	}
 }
@@ -404,18 +437,45 @@ static cmark_node* handle_delim(subject* subj, unsigned char c, bool smart)
 // Assumes we have a hyphen at the current position.
 static cmark_node* handle_hyphen(subject* subj, bool smart)
 {
+	int startpos = subj->pos;
+
 	advance(subj);
-	if (smart && peek_char(subj) == '-') {
-		advance(subj);
-		if (peek_char(subj) == '-') {
-			advance(subj);
-			return make_str(cmark_chunk_literal(EMDASH));
-		} else {
-			return make_str(cmark_chunk_literal(ENDASH));
-		}
-	} else {
+
+	if (!smart || peek_char(subj) != '-') {
 		return make_str(cmark_chunk_literal("-"));
 	}
+
+	while (smart && peek_char(subj) == '-') {
+		advance(subj);
+	}
+
+	int numhyphens = subj->pos - startpos;
+	int en_count = 0;
+	int em_count = 0;
+	int i;
+	cmark_strbuf buf = GH_BUF_INIT;
+
+	if (numhyphens % 3 == 0) { // if divisible by 3, use all em dashes
+		em_count = numhyphens / 3;
+	} else if (numhyphens % 2 == 0) { // if divisible by 2, use all en dashes
+		en_count = numhyphens / 2;
+	} else if (numhyphens % 3 == 2) { // use one en dash at end
+		en_count = 1;
+		em_count = (numhyphens - 2) / 3;
+	} else { // use two en dashes at the end
+		en_count = 2;
+		em_count = (numhyphens - 4) / 3;
+	}
+
+	for (i = em_count; i > 0; i--) {
+		cmark_strbuf_puts(&buf, EMDASH);
+	}
+
+	for (i = en_count; i > 0; i--) {
+		cmark_strbuf_puts(&buf, ENDASH);
+	}
+
+	return make_str(cmark_chunk_buf_detach(&buf));
 }
 
 // Assumes we have a period at the current position.
@@ -435,13 +495,22 @@ static cmark_node* handle_period(subject* subj, bool smart)
 	}
 }
 
-static void process_emphasis(subject *subj, delimiter *start_delim)
+static void process_emphasis(subject *subj, delimiter *stack_bottom)
 {
 	delimiter *closer = subj->last_delim;
 	delimiter *opener;
+	delimiter *old_closer;
+	bool opener_found;
+	delimiter *openers_bottom[128];
+
+	// initialize openers_bottom:
+	openers_bottom['*'] = stack_bottom;
+	openers_bottom['_'] = stack_bottom;
+	openers_bottom['\''] = stack_bottom;
+	openers_bottom['"'] = stack_bottom;
 
 	// move back to first relevant delim.
-	while (closer != NULL && closer->previous != start_delim) {
+	while (closer != NULL && closer->previous != stack_bottom) {
 		closer = closer->previous;
 	}
 
@@ -452,15 +521,19 @@ static void process_emphasis(subject *subj, delimiter *start_delim)
 		     closer->delim_char == '"' || closer->delim_char == '\'')) {
 			// Now look backwards for first matching opener:
 			opener = closer->previous;
-			while (opener != NULL && opener != start_delim) {
+			opener_found = false;
+			while (opener != NULL && opener != stack_bottom &&
+			       opener != openers_bottom[closer->delim_char]) {
 				if (opener->delim_char == closer->delim_char &&
 				    opener->can_open) {
+					opener_found = true;
 					break;
 				}
 				opener = opener->previous;
 			}
+			old_closer = closer;
 			if (closer->delim_char == '*' || closer->delim_char == '_') {
-				if (opener != NULL && opener != start_delim) {
+				if (opener_found) {
 					closer = S_insert_emph(subj, opener, closer);
 				} else {
 					closer = closer->next;
@@ -469,7 +542,7 @@ static void process_emphasis(subject *subj, delimiter *start_delim)
 				cmark_chunk_free(&closer->inl_text->as.literal);
 				closer->inl_text->as.literal =
 				    cmark_chunk_literal(RIGHTSINGLEQUOTE);
-				if (opener != NULL && opener != start_delim) {
+				if (opener_found) {
 					cmark_chunk_free(&opener->inl_text->as.literal);
 					opener->inl_text->as.literal =
 					    cmark_chunk_literal(LEFTSINGLEQUOTE);
@@ -479,19 +552,29 @@ static void process_emphasis(subject *subj, delimiter *start_delim)
 				cmark_chunk_free(&closer->inl_text->as.literal);
 				closer->inl_text->as.literal =
 				    cmark_chunk_literal(RIGHTDOUBLEQUOTE);
-				if (opener != NULL && opener != start_delim) {
+				if (opener_found) {
 					cmark_chunk_free(&opener->inl_text->as.literal);
 					opener->inl_text->as.literal =
 					    cmark_chunk_literal(LEFTDOUBLEQUOTE);
 				}
 				closer = closer->next;
 			}
+			if (!opener_found) {
+				// set lower bound for future searches for openers:
+				openers_bottom[old_closer->delim_char] = old_closer->previous;
+				if (!old_closer->can_open) {
+					// we can remove a closer that can't be an
+					// opener, once we've seen there's no
+					// matching opener:
+					remove_delimiter(subj, old_closer);
+				}
+			}
 		} else {
 			closer = closer->next;
 		}
 	}
-	// free all delimiters in list until start_delim:
-	while (subj->last_delim != start_delim) {
+	// free all delimiters in list until stack_bottom:
+	while (subj->last_delim != stack_bottom) {
 		remove_delimiter(subj, subj->last_delim);
 	}
 }
@@ -583,8 +666,7 @@ static cmark_node* handle_backslash(subject *subj)
 	if (cmark_ispunct(nextchar)) {  // only ascii symbols and newline can be escaped
 		advance(subj);
 		return make_str(cmark_chunk_dup(&subj->input, subj->pos - 1, 1));
-	} else if (nextchar == '\r' || nextchar == '\n') {
-		advance(subj);
+	} else if (!is_eof(subj) && skip_line_end(subj)) {
 		return make_linebreak();
 	} else {
 		return make_str(cmark_chunk_literal("\\"));
@@ -882,7 +964,7 @@ match:
 	inl->type = is_image ? NODE_IMAGE : NODE_LINK;
 	cmark_chunk_free(&inl->as.literal);
 	inl->first_child = link_text;
-	process_emphasis(subj, opener->previous);
+	process_emphasis(subj, opener);
 	inl->as.link.url   = url;
 	inl->as.link.title = title;
 	inl->next = NULL;
@@ -897,10 +979,10 @@ match:
 	}
 	parent->last_child = inl;
 
-	// process_emphasis will remove this delimiter and all later ones.
 	// Now, if we have a link, we also want to deactivate earlier link
 	// delimiters. (This code can be removed if we decide to allow links
 	// inside links.)
+	remove_delimiter(subj, opener);
 	if (!is_image) {
 		opener = subj->last_delim;
 		while (opener != NULL) {
@@ -926,9 +1008,7 @@ static cmark_node* handle_newline(subject *subj)
 	// skip over newline
 	advance(subj);
 	// skip spaces at beginning of line
-	while (peek_char(subj) == ' ') {
-		advance(subj);
-	}
+	skip_spaces(subj);
 	if (nlpos > 1 &&
 	    peek_at(subj, nlpos - 1) == ' ' &&
 	    peek_at(subj, nlpos - 2) == ' ') {
@@ -1059,7 +1139,7 @@ static int parse_inline(subject* subj, cmark_node * parent, int options)
 		subj->pos = endpos;
 
 		// if we're at a newline, strip trailing spaces.
-		if (peek_char(subj) == '\r' || peek_char(subj) == '\n') {
+		if (S_is_line_end_char(peek_char(subj))) {
 			cmark_chunk_rtrim(&contents);
 		}
 
@@ -1077,6 +1157,7 @@ extern void cmark_parse_inlines(cmark_node* parent, cmark_reference_map *refmap,
 {
 	subject subj;
 	subject_from_buf(&subj, &parent->string_content, refmap);
+	cmark_chunk_rtrim(&subj.input);
 
 	while (!is_eof(&subj) && parse_inline(&subj, parent, options)) ;
 
@@ -1086,11 +1167,9 @@ extern void cmark_parse_inlines(cmark_node* parent, cmark_reference_map *refmap,
 // Parse zero or more space characters, including at most one newline.
 static void spnl(subject* subj)
 {
-	bool seen_newline = false;
-	while (peek_char(subj) == ' ' ||
-	       (!seen_newline &&
-	        (seen_newline = peek_char(subj) == '\r' || peek_char(subj) == '\n'))) {
-		advance(subj);
+	skip_spaces(subj);
+	if (skip_line_end(subj)) {
+		skip_spaces(subj);
 	}
 }
 
@@ -1143,14 +1222,19 @@ bufsize_t cmark_parse_reference_inline(cmark_strbuf *input, cmark_reference_map 
 		subj.pos = beforetitle;
 		title = cmark_chunk_literal("");
 	}
+
 	// parse final spaces and newline:
-	while (peek_char(&subj) == ' ') {
-		advance(&subj);
-	}
-	if (peek_char(&subj) == '\r' || peek_char(&subj) == '\n') {
-		advance(&subj);
-	} else if (peek_char(&subj) != 0) {
-		return 0;
+	skip_spaces(&subj);
+	if (!skip_line_end(&subj)) {
+		if (matchlen) { // try rewinding before title
+			subj.pos = beforetitle;
+			skip_spaces(&subj);
+			if (!skip_line_end(&subj)) {
+				return 0;
+			}
+		} else {
+			return 0;
+		}
 	}
 	// insert reference into refmap
 	cmark_reference_create(refmap, &lab, &url, &title);
