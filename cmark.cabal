@@ -1,5 +1,5 @@
 name:                cmark
-version:             0.4.0.1
+version:             0.4.0.2
 synopsis:            Fast, accurate CommonMark (Markdown) parser and renderer
 description:
   This package provides Haskell bindings for
@@ -98,6 +98,6 @@ Test-Suite test-cmark
   type:           exitcode-stdio-1.0
   main-is:        test-cmark.hs
   hs-source-dirs: test
-  build-depends:  base, cmark, text, HUnit >= 1.2 && < 1.3
+  build-depends:  base, cmark, text, HUnit >= 1.2 && < 1.4
   ghc-options:    -Wall -fno-warn-unused-do-bind -threaded
   default-language: Haskell98
