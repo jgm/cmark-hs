@@ -1,3 +1,13 @@
+cmark 0.5 (29 Dec 2015)
+
+  * Updated to libcmark 0.23.0.
+  * API changes:
+    + Added `OnEnter` and `OnExit` types.
+    + In `NodeType`, `HRULE` is now `THEMATIC_BREAK`,
+      `HTML` is `HTML_BLOCK`, `INLINE_HTML` is
+      `HTML_INLINE`, `HEADER` is `HEADING`.  New
+      constructors: `CUSTOM_INLINE`, `CUSTOM_BLOCK`.
+
 cmark 0.4.1 (23 Aug 2015)
 
   * Updated to libcmark 0.22.0.
