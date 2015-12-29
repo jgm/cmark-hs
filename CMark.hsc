@@ -149,20 +149,26 @@ type Level = Int
 
 type Info = Text
 
+type OnEnter = Text
+
+type OnExit = Text
+
 data NodeType =
     DOCUMENT
-  | HRULE
+  | THEMATIC_BREAK
   | PARAGRAPH
   | BLOCK_QUOTE
-  | HTML Text
+  | HTML_BLOCK Text
+  | CUSTOM_BLOCK OnEnter OnExit
   | CODE_BLOCK Info Text
-  | HEADER Level
+  | HEADING Level
   | LIST ListAttributes
   | ITEM
   | TEXT Text
   | SOFTBREAK
   | LINEBREAK
-  | INLINE_HTML Text
+  | HTML_INLINE Text
+  | CUSTOM_INLINE OnEnter OnExit
   | CODE Text
   | EMPH
   | STRONG
@@ -210,14 +216,16 @@ ptrToNodeType ptr = do
   case nodeType of
        #const CMARK_NODE_DOCUMENT
          -> return DOCUMENT
-       #const CMARK_NODE_HRULE
-         -> return HRULE
+       #const CMARK_NODE_THEMATIC_BREAK
+         -> return THEMATIC_BREAK
        #const CMARK_NODE_PARAGRAPH
          -> return PARAGRAPH
        #const CMARK_NODE_BLOCK_QUOTE
          -> return BLOCK_QUOTE
-       #const CMARK_NODE_HTML
-         -> HTML <$> literal
+       #const CMARK_NODE_HTML_BLOCK
+         -> HTML_BLOCK <$> literal
+       #const CMARK_NODE_CUSTOM_BLOCK
+         -> CUSTOM_BLOCK <$> onEnter <*> onExit
        #const CMARK_NODE_CODE_BLOCK
          -> CODE_BLOCK <$> info
                        <*> literal
@@ -225,8 +233,8 @@ ptrToNodeType ptr = do
          -> LIST <$> listAttr
        #const CMARK_NODE_ITEM
          -> return ITEM
-       #const CMARK_NODE_HEADER
-         -> HEADER <$> level
+       #const CMARK_NODE_HEADING
+         -> HEADING <$> level
        #const CMARK_NODE_EMPH
          -> return EMPH
        #const CMARK_NODE_STRONG
@@ -239,15 +247,19 @@ ptrToNodeType ptr = do
          -> TEXT <$> literal
        #const CMARK_NODE_CODE
          -> CODE <$> literal
-       #const CMARK_NODE_INLINE_HTML
-         -> INLINE_HTML <$> literal
+       #const CMARK_NODE_HTML_INLINE
+         -> HTML_INLINE <$> literal
+       #const CMARK_NODE_CUSTOM_INLINE
+         -> CUSTOM_INLINE <$> onEnter <*> onExit
        #const CMARK_NODE_SOFTBREAK
          -> return SOFTBREAK
        #const CMARK_NODE_LINEBREAK
          -> return LINEBREAK
        _ -> error "Unknown node type"
   where literal   = c_cmark_node_get_literal ptr >>= totext
-        level     = c_cmark_node_get_header_level ptr
+        level     = c_cmark_node_get_heading_level ptr
+        onEnter    = c_cmark_node_get_on_enter ptr >>= totext
+        onExit     = c_cmark_node_get_on_exit  ptr >>= totext
         listAttr  = do
           listtype <- c_cmark_node_get_list_type ptr
           listdelim <- c_cmark_node_get_list_delim ptr
@@ -300,12 +312,17 @@ fromNode :: Node -> IO NodePtr
 fromNode (Node _ nodeType children) = do
   node <- case nodeType of
             DOCUMENT    -> c_cmark_node_new (#const CMARK_NODE_DOCUMENT)
-            HRULE       -> c_cmark_node_new (#const CMARK_NODE_HRULE)
+            THEMATIC_BREAK -> c_cmark_node_new (#const CMARK_NODE_THEMATIC_BREAK)
             PARAGRAPH   -> c_cmark_node_new (#const CMARK_NODE_PARAGRAPH)
             BLOCK_QUOTE -> c_cmark_node_new (#const CMARK_NODE_BLOCK_QUOTE)
-            HTML literal -> do
-                     n <- c_cmark_node_new (#const CMARK_NODE_HTML)
+            HTML_BLOCK literal -> do
+                     n <- c_cmark_node_new (#const CMARK_NODE_HTML_BLOCK)
                      c_cmark_node_set_literal n =<< fromtext literal
+                     return n
+            CUSTOM_BLOCK onEnter onExit -> do
+                     n <- c_cmark_node_new (#const CMARK_NODE_CUSTOM_BLOCK)
+                     c_cmark_node_set_on_enter n =<< fromtext onEnter
+                     c_cmark_node_set_on_exit  n =<< fromtext onExit
                      return n
             CODE_BLOCK info literal -> do
                      n <- c_cmark_node_new (#const CMARK_NODE_CODE_BLOCK)
@@ -324,9 +341,9 @@ fromNode (Node _ nodeType children) = do
                      c_cmark_node_set_list_start n $ listStart attr
                      return n
             ITEM        -> c_cmark_node_new (#const CMARK_NODE_ITEM)
-            HEADER lev  -> do
-                     n <- c_cmark_node_new (#const CMARK_NODE_HEADER)
-                     c_cmark_node_set_header_level n lev
+            HEADING lev  -> do
+                     n <- c_cmark_node_new (#const CMARK_NODE_HEADING)
+                     c_cmark_node_set_heading_level n lev
                      return n
             EMPH        -> c_cmark_node_new (#const CMARK_NODE_EMPH)
             STRONG      -> c_cmark_node_new (#const CMARK_NODE_STRONG)
@@ -348,9 +365,14 @@ fromNode (Node _ nodeType children) = do
                      n <- c_cmark_node_new (#const CMARK_NODE_CODE)
                      c_cmark_node_set_literal n =<< fromtext literal
                      return n
-            INLINE_HTML literal -> do
-                     n <- c_cmark_node_new (#const CMARK_NODE_INLINE_HTML)
+            HTML_INLINE literal -> do
+                     n <- c_cmark_node_new (#const CMARK_NODE_HTML_INLINE)
                      c_cmark_node_set_literal n =<< fromtext literal
+                     return n
+            CUSTOM_INLINE onEnter onExit -> do
+                     n <- c_cmark_node_new (#const CMARK_NODE_CUSTOM_INLINE)
+                     c_cmark_node_set_on_enter n =<< fromtext onEnter
+                     c_cmark_node_set_on_exit  n =<< fromtext onExit
                      return n
             SOFTBREAK   -> c_cmark_node_new (#const CMARK_NODE_SOFTBREAK)
             LINEBREAK   -> c_cmark_node_new (#const CMARK_NODE_LINEBREAK)
@@ -407,8 +429,8 @@ foreign import ccall "cmark.h cmark_node_get_url"
 foreign import ccall "cmark.h cmark_node_get_title"
     c_cmark_node_get_title :: NodePtr -> IO CString
 
-foreign import ccall "cmark.h cmark_node_get_header_level"
-    c_cmark_node_get_header_level :: NodePtr -> IO Int
+foreign import ccall "cmark.h cmark_node_get_heading_level"
+    c_cmark_node_get_heading_level :: NodePtr -> IO Int
 
 foreign import ccall "cmark.h cmark_node_get_list_type"
     c_cmark_node_get_list_type :: NodePtr -> IO Int
@@ -437,6 +459,12 @@ foreign import ccall "cmark.h cmark_node_get_end_line"
 foreign import ccall "cmark.h cmark_node_get_end_column"
     c_cmark_node_get_end_column :: NodePtr -> IO Int
 
+foreign import ccall "cmark.h cmark_node_get_on_enter"
+    c_cmark_node_get_on_enter :: NodePtr -> IO CString
+
+foreign import ccall "cmark.h cmark_node_get_on_exit"
+    c_cmark_node_get_on_exit :: NodePtr -> IO CString
+
 foreign import ccall "cmark.h cmark_node_append_child"
     c_cmark_node_append_child :: NodePtr -> NodePtr -> IO Int
 
@@ -449,8 +477,8 @@ foreign import ccall "cmark.h cmark_node_set_url"
 foreign import ccall "cmark.h cmark_node_set_title"
     c_cmark_node_set_title :: NodePtr -> CString -> IO Int
 
-foreign import ccall "cmark.h cmark_node_set_header_level"
-    c_cmark_node_set_header_level :: NodePtr -> Int -> IO Int
+foreign import ccall "cmark.h cmark_node_set_heading_level"
+    c_cmark_node_set_heading_level :: NodePtr -> Int -> IO Int
 
 foreign import ccall "cmark.h cmark_node_set_list_type"
     c_cmark_node_set_list_type :: NodePtr -> Int -> IO Int
@@ -466,6 +494,12 @@ foreign import ccall "cmark.h cmark_node_set_list_delim"
 
 foreign import ccall "cmark.h cmark_node_set_fence_info"
     c_cmark_node_set_fence_info :: NodePtr -> CString -> IO Int
+
+foreign import ccall "cmark.h cmark_node_set_on_enter"
+    c_cmark_node_set_on_enter :: NodePtr -> CString -> IO Int
+
+foreign import ccall "cmark.h cmark_node_set_on_exit"
+    c_cmark_node_set_on_exit :: NodePtr -> CString -> IO Int
 
 foreign import ccall "cmark.h &cmark_node_free"
     c_cmark_node_free :: FunPtr (NodePtr -> IO ())
