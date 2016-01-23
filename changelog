@@ -1,3 +1,7 @@
+cmark 0.5.1 (21 Jan 2016)
+
+  * Updated to libcmark 0.24.1.
+
 cmark 0.5 (29 Dec 2015)
 
   * Updated to libcmark 0.23.0.
