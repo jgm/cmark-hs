@@ -48,6 +48,10 @@ Source-repository head
   type:              git
   location:          git://github.com/jgm/cmark-hs.git
 
+flag pkgconfig
+  default:     False
+  description: Use system libcmark via pkgconfig
+
 library
   exposed-modules:     CMark
   build-depends:       base >=4.5 && < 4.9,
@@ -57,10 +61,13 @@ library
     build-depends:     ghc-prim >= 0.2
   default-language:    Haskell2010
   ghc-options:         -Wall -fno-warn-unused-do-bind
-  cc-options:          -Wall -std=c99
-  Include-dirs:        cbits
-  Includes:            cmark.h
-  c-sources:           cbits/houdini_html_u.c
+  if flag(pkgconfig)
+    pkgconfig-depends: libcmark
+  else
+    cc-options:        -Wall -std=c99
+    Include-dirs:      cbits
+    Includes:          cmark.h
+    c-sources:         cbits/houdini_html_u.c
                        cbits/references.c
                        cbits/utf8.c
                        cbits/inlines.c
