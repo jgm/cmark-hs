@@ -1,3 +1,8 @@
+cmark 0.5.2.1 (22 May 2016)
+
+  * New .travis.yml - test with stack, cabal on many versions.
+  * Increase upper bound of base (Utku Demir).
+
 cmark 0.5.2 (26 Mar 2016)
 
   * Add flag to allow building with an installed libcmark (Jens Petersen).
