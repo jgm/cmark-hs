@@ -7,7 +7,6 @@ environment:
 cache:
   - "c:\\sr" # stack root, short paths == fewer problems
   - "c:\\stack\\stack.exe"
-  - '%WIXBIN%'
 
 # We don't do a normal C build, but build in test_script via stack
 build: off
