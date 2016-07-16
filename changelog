@@ -1,3 +1,13 @@
+cmark 0.5.3.1 (16 Jul 2016)
+
+  * Remove unnecessary typedef that caused problems with the build
+    (patch from upstream).
+
+cmark 0.5.3 (15 Jul 2016)
+
+  * Update to cmark 0.26.0.
+  * Added appveyor CI.
+
 cmark 0.5.2.1 (22 May 2016)
 
   * New .travis.yml - test with stack, cabal on many versions.
