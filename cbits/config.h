@@ -72,7 +72,6 @@ CMARK_INLINE int c99_snprintf(char *outBuf, size_t size, const char *format, ...
 #ifdef _WIN32
 # include <BaseTsd.h>
   typedef SSIZE_T ssize_t;
-  typedef SIZE_T size_t;
 #else
 # include <sys/types.h>
 #endif
