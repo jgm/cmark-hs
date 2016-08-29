@@ -9,7 +9,7 @@ description:
   libcmark (0.26.0) and does not require prior installation of the
   C library.
 
-homepage:            https://github.com/jgm/commonmark-hs
+homepage:            https://github.com/jgm/cmark-hs
 license:             BSD3
 license-file:        LICENSE
 author:              John MacFarlane
