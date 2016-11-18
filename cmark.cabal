@@ -104,6 +104,6 @@ Test-Suite test-cmark
   type:           exitcode-stdio-1.0
   main-is:        test-cmark.hs
   hs-source-dirs: test
-  build-depends:  base, cmark, text, HUnit >= 1.2 && < 1.4
+  build-depends:  base, cmark, text, HUnit >= 1.2 && < 1.6
   ghc-options:    -Wall -fno-warn-unused-do-bind -threaded
   default-language: Haskell98
