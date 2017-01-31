@@ -1,3 +1,12 @@
+cmark 0.5.5 (31 Jan 2017)
+
+  * Update to cmark 0.27.1.
+  * Update version bounds for dependencies.
+
+cmark 0.5.4 (18 Nov 2016)
+
+  * Update to cmark 0.27.0.
+
 cmark 0.5.3.1 (16 Jul 2016)
 
   * Remove unnecessary typedef that caused problems with the build
