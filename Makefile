@@ -2,7 +2,7 @@ C_SOURCES=$(wildcard cbits/*.*)
 CMARK_DIR?=../cmark
 
 build:
-	cabal configure --enable-tests && cabal build
+	cabal configure --enable-tests -v3 && cabal build
 
 test:
 	cabal test
