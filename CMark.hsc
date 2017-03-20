@@ -48,30 +48,30 @@ import Control.Applicative ((<$>), (<*>))
 
 -- | Convert CommonMark formatted text to Html, using cmark's
 -- built-in renderer.
-commonmarkToHtml :: [CMarkOption] -> Text -> Text
-commonmarkToHtml opts = commonmarkToX render_html opts Nothing
+commonmarkToHtml :: [CMarkExtension] -> [CMarkOption] -> Text -> Text
+commonmarkToHtml exts opts = commonmarkToX render_html exts opts Nothing
   where render_html n o _ = c_cmark_render_html n o
 
 -- | Convert CommonMark formatted text to CommonMark XML, using cmark's
 -- built-in renderer.
-commonmarkToXml :: [CMarkOption] -> Text -> Text
-commonmarkToXml opts = commonmarkToX render_xml opts Nothing
+commonmarkToXml :: [CMarkExtension] -> [CMarkOption] -> Text -> Text
+commonmarkToXml exts opts = commonmarkToX render_xml exts opts Nothing
   where render_xml n o _ = c_cmark_render_xml n o
 
 -- | Convert CommonMark formatted text to groff man, using cmark's
 -- built-in renderer.
-commonmarkToMan :: [CMarkOption] -> Maybe Int -> Text -> Text
+commonmarkToMan :: [CMarkExtension] -> [CMarkOption] -> Maybe Int -> Text -> Text
 commonmarkToMan = commonmarkToX c_cmark_render_man
 
 -- | Convert CommonMark formatted text to latex, using cmark's
 -- built-in renderer.
-commonmarkToLaTeX :: [CMarkOption] -> Maybe Int -> Text -> Text
+commonmarkToLaTeX :: [CMarkExtension] -> [CMarkOption] -> Maybe Int -> Text -> Text
 commonmarkToLaTeX = commonmarkToX c_cmark_render_latex
 
 -- | Convert CommonMark formatted text to a structured 'Node' tree,
 -- which can be transformed or rendered using Haskell code.
-commonmarkToNode :: [CMarkOption] -> Text -> Node
-commonmarkToNode opts s = Unsafe.unsafePerformIO $ do
+commonmarkToNode :: [CMarkExtension] -> [CMarkOption] -> Text -> Node
+commonmarkToNode exts opts s = Unsafe.unsafePerformIO $ do
   nptr <- TF.withCStringLen s $! \(ptr, len) ->
              c_cmark_parse_document ptr len (combineOptions opts)
   fptr <- newForeignPtr c_cmark_node_free nptr
@@ -105,11 +105,12 @@ nodeToX renderer opts mbWidth node = Unsafe.unsafePerformIO $ do
     TF.peekCStringLen (cstr, c_strlen cstr)
 
 commonmarkToX :: Renderer
+              -> [CMarkExtension]
               -> [CMarkOption]
               -> Maybe Int
               -> Text
               -> Text
-commonmarkToX renderer opts mbWidth s = Unsafe.unsafePerformIO $
+commonmarkToX renderer exts opts mbWidth s = Unsafe.unsafePerformIO $
   TF.withCStringLen s $ \(ptr, len) -> do
     let opts' = combineOptions opts
     nptr <- c_cmark_parse_document ptr len opts'
@@ -123,6 +124,9 @@ type NodePtr = Ptr ()
 
 data Node = Node (Maybe PosInfo) NodeType [Node]
      deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
+
+type ExtensionPtr = Ptr ()
+type ParserPtr = Ptr ()
 
 data DelimType =
     PERIOD_DELIM
@@ -183,7 +187,13 @@ data PosInfo = PosInfo{ startLine   :: Int
                       }
   deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
-newtype CMarkOption = CMarkOption { unCMarkOption :: CInt }
+data CMarkOption = CMarkOption { unCMarkOption :: CInt }
+
+data CMarkExtension = ExtTable
+                    | ExtStrikethrough
+                    | ExtAutolink
+                    | ExtTagfilter
+                    deriving (Show, Read, Eq, Ord, Typeable, Data, Generic)
 
 -- | Combine a list of options into a single option, using bitwise or.
 combineOptions :: [CMarkOption] -> CInt
@@ -503,3 +513,10 @@ foreign import ccall "cmark.h cmark_node_set_on_exit"
 
 foreign import ccall "cmark.h &cmark_node_free"
     c_cmark_node_free :: FunPtr (NodePtr -> IO ())
+
+foreign import ccall "cmark_extension_api.h cmark_find_syntax_extension"
+    c_cmark_find_syntax_extension :: CString -> IO ExtensionPtr
+
+foreign import ccall "cmark_extension_api.h cmark_parser_attach_syntax_extension"
+    c_cmark_parser_attach_syntax_extension :: ParserPtr -> ExtensionPtr -> IO Int
+
