@@ -520,3 +520,27 @@ foreign import ccall "cmark_extension_api.h cmark_find_syntax_extension"
 foreign import ccall "cmark_extension_api.h cmark_parser_attach_syntax_extension"
     c_cmark_parser_attach_syntax_extension :: ParserPtr -> ExtensionPtr -> IO Int
 
+-- TODO (or better, write a bridge C function and header that
+--       define parse_document_with_extensions, including the
+--       requisite freeing)
+-- cmark_register_plugin
+--   in cmark.h (via registry.h)
+--   cmark_register_plugin(cmark_plugin_init_func reg_fn)
+-- core_extensions_registration
+--   in core-extensions.h
+--   int core_extensions_registration(cmark_plugin *plugin)
+-- cmark_plugin_init_func typedef in cmark_extension_api.h
+--   int (*cmark_plugin_init_func)(cmark_plugin *plugin)
+-- cmark_parser_new_with_mem
+--   in cmark.h
+--   cmark_parser* cmark_parser_new_with_mem(int options, cmark_mem *mem)
+-- cmark_get_arena_mem_allocator
+--   in cmark.h
+--   cmark_mem* cmark_get_arena_mem_allocator()
+-- cmark_parser_feed
+--   in cmark.h
+--   void cmark_parser_feed(cmark_parser *parser, const char *buffer, size_t len)
+-- cmark_parser_finish
+--    in cmark.h
+--    cmark_node* cmark_parser_finish(cmark_parser *parser)
+
