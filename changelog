@@ -1,3 +1,7 @@
+cmark 0.5.5.1 (02 Aug 2017)
+
+  * Update to cmark 0.28.0.
+
 cmark 0.5.5.1 (20 Mar 2017)
 
   * Update version bound for HUnit.

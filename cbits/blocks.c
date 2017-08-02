@@ -414,8 +414,8 @@ static bufsize_t parse_list_marker(cmark_mem *mem, cmark_chunk *input,
     data->marker_offset = 0; // will be adjusted later
     data->list_type = CMARK_BULLET_LIST;
     data->bullet_char = c;
-    data->start = 1;
-    data->delimiter = CMARK_PERIOD_DELIM;
+    data->start = 0;
+    data->delimiter = CMARK_NO_DELIM;
     data->tight = false;
   } else if (cmark_isdigit(c)) {
     int start = 0;
@@ -580,7 +580,7 @@ static void S_parser_feed(cmark_parser *parser, const unsigned char *buffer,
           if (buffer == end)
             parser->last_buffer_ended_with_cr = true;
         }
-        if (*buffer == '\n')
+        if (buffer < end && *buffer == '\n')
           buffer++;
       }
     }
@@ -1146,6 +1146,8 @@ static void S_process_line(cmark_parser *parser, const unsigned char *buffer,
   else
     cmark_strbuf_put(&parser->curline, buffer, bytes);
 
+  bytes = parser->curline.size;
+
   // ensure line ends with a newline:
   if (bytes == 0 || !S_is_line_end_char(parser->curline.ptr[bytes - 1]))
     cmark_strbuf_putc(&parser->curline, '\n');
@@ -1157,6 +1159,7 @@ static void S_process_line(cmark_parser *parser, const unsigned char *buffer,
 
   input.data = parser->curline.ptr;
   input.len = parser->curline.size;
+  input.alloc = 0;
 
   parser->line_number++;
 
@@ -1191,9 +1194,7 @@ cmark_node *cmark_parser_finish(cmark_parser *parser) {
 
   finalize_document(parser);
 
-  if (parser->options & CMARK_OPT_NORMALIZE) {
-    cmark_consolidate_text_nodes(parser->root);
-  }
+  cmark_consolidate_text_nodes(parser->root);
 
   cmark_strbuf_free(&parser->curline);
 

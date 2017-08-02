@@ -42,7 +42,7 @@ static CMARK_INLINE void outc(cmark_renderer *renderer, cmark_escaping escape,
     break;
   case 45:             // '-'
     if (nextc == 45) { // prevent ligature
-      cmark_render_ascii(renderer, "\\-");
+      cmark_render_ascii(renderer, "-{}");
     } else {
       cmark_render_ascii(renderer, "-");
     }
@@ -179,6 +179,10 @@ static link_type get_link_type(cmark_node *node) {
 
     link_text = node->first_child;
     cmark_consolidate_text_nodes(link_text);
+
+    if (!link_text)
+      return NO_LINK;
+
     realurl = (char *)url;
     realurllen = (int)url_len;
     if (strncmp(realurl, "mailto:", 7) == 0) {
@@ -216,11 +220,10 @@ static int S_get_enumlevel(cmark_node *node) {
 static int S_render_node(cmark_renderer *renderer, cmark_node *node,
                          cmark_event_type ev_type, int options) {
   int list_number;
+  int enumlevel;
   char list_number_string[LIST_NUMBER_STRING_SIZE];
   bool entering = (ev_type == CMARK_EVENT_ENTER);
   cmark_list_type list_type;
-  const char *roman_numerals[] = {"",   "i",   "ii",   "iii", "iv", "v",
-                                  "vi", "vii", "viii", "ix",  "x"};
   bool allow_wrap = renderer->width > 0 && !(CMARK_OPT_NOBREAKS & options);
 
   // avoid warning about unused parameter:
@@ -249,13 +252,24 @@ static int S_render_node(cmark_renderer *renderer, cmark_node *node,
       CR();
       list_number = cmark_node_get_list_start(node);
       if (list_number > 1) {
-        snprintf(list_number_string, LIST_NUMBER_STRING_SIZE, "%d",
-                 list_number);
-        LIT("\\setcounter{enum");
-        LIT((char *)roman_numerals[S_get_enumlevel(node)]);
-        LIT("}{");
-        OUT(list_number_string, false, NORMAL);
-        LIT("}");
+	enumlevel = S_get_enumlevel(node);
+	// latex normally supports only five levels
+	if (enumlevel >= 1 && enumlevel <= 5) {
+          snprintf(list_number_string, LIST_NUMBER_STRING_SIZE, "%d",
+                   list_number);
+          LIT("\\setcounter{enum");
+          switch(enumlevel) {
+	  case 1: LIT("i"); break;
+	  case 2: LIT("ii"); break;
+	  case 3: LIT("iii"); break;
+	  case 4: LIT("iv"); break;
+	  case 5: LIT("v"); break;
+	  default: LIT("i"); break;
+	  }
+          LIT("}{");
+          OUT(list_number_string, false, NORMAL);
+          LIT("}");
+	}
         CR();
       }
     } else {
@@ -390,7 +404,8 @@ static int S_render_node(cmark_renderer *renderer, cmark_node *node,
       case URL_AUTOLINK:
         LIT("\\url{");
         OUT(url, false, URL);
-        break;
+        LIT("}");
+        return 0; // Don't process further nodes to avoid double-rendering artefacts
       case EMAIL_AUTOLINK:
         LIT("\\href{");
         OUT(url, false, URL);

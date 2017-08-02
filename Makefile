@@ -8,7 +8,7 @@ test:
 	cabal test
 
 prep:
-	cabal install --only-dependencies
+	cabal install --enable-tests --only-dependencies
 
 install:
 	cabal install
