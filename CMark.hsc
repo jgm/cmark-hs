@@ -255,7 +255,7 @@ ptrToNodeType ptr = do
          -> return SOFTBREAK
        #const CMARK_NODE_LINEBREAK
          -> return LINEBREAK
-       _ -> error "Unknown node type"
+       _ -> error $ "Unknown node type: " ++ show nodeType
   where literal   = c_cmark_node_get_literal ptr >>= totext
         level     = c_cmark_node_get_heading_level ptr
         onEnter    = c_cmark_node_get_on_enter ptr >>= totext

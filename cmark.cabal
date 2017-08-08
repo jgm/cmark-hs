@@ -1,5 +1,5 @@
 name:                cmark
-version:             0.5.6
+version:             0.5.6.1
 synopsis:            Fast, accurate CommonMark (Markdown) parser and renderer
 description:
   This package provides Haskell bindings for
