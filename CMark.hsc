@@ -40,6 +40,8 @@ import Data.Data (Data)
 import Data.Typeable (Typeable)
 import Data.Text (Text, empty)
 import qualified Data.Text.Foreign as TF
+import Data.ByteString.Unsafe (unsafePackMallocCString)
+import Data.Text.Encoding (decodeUtf8)
 import Control.Applicative ((<$>), (<*>))
 
 #include <cmark.h>
@@ -100,7 +102,7 @@ nodeToX renderer opts mbWidth node = Unsafe.unsafePerformIO $ do
   fptr <- newForeignPtr c_cmark_node_free nptr
   withForeignPtr fptr $ \ptr -> do
     cstr <- renderer ptr (combineOptions opts) (fromMaybe 0 mbWidth)
-    TF.peekCStringLen (cstr, c_strlen cstr)
+    decodeUtf8 <$> unsafePackMallocCString cstr
 
 commonmarkToX :: Renderer
               -> [CMarkOption]
@@ -114,8 +116,7 @@ commonmarkToX renderer opts mbWidth s = Unsafe.unsafePerformIO $
     fptr <- newForeignPtr c_cmark_node_free nptr
     withForeignPtr fptr $ \p -> do
       str <- renderer p opts' (fromMaybe 0 mbWidth)
-      t <- TF.peekCStringLen $! (str, c_strlen str)
-      return t
+      decodeUtf8 <$> unsafePackMallocCString str
 
 type NodePtr = Ptr ()
 
