@@ -1,14 +1,20 @@
+cmark 0.5.6.2 (13 Mar 2019)
+
+  * Ensure that withtext adds a null terminator (#14).
+    This fixes a regression due to PR #13, which caused
+    random content to appear in rendered TEXT nodes.
+
 cmark 0.5.6.1 (11 Mar 2019)
 
   * Fix CString memory leaks (Anders Kaseorg).  The renderer functions return
-    a malloc’d string which the caller is expected to free.
+  a malloc’d string which the caller is expected to free.
 
   * Fix use-after-free bugs (Anders Kaseorg).  `useAsCString` frees the
-    CString after the IO action finishes executing, so passing `return` as that
-    action can never be correct.  To make sure the CString gets freed at the
-    right time, we need a “with”-style abstraction, not just a conversion
-    function.  While we’re here replace this with `withCStringLen`, which also
-    makes fewer copies.
+    CString after the IO action finishes executing, so passing `return` as
+    that action can never be correct.  To make sure the CString gets freed
+    at the right time, we need a “with”-style abstraction, not just a
+    conversion function.  While we’re here replace this with
+    `withCStringLen`, which also makes fewer copies.
 
   * Show node type on error for unknown node type.
 
