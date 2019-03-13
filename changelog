@@ -1,3 +1,7 @@
+cmark 0.5.6.3 (13 Mar 2019)
+
+  * Use snoc instead of <> to add the null terminator.
+
 cmark 0.5.6.2 (13 Mar 2019)
 
   * Ensure that withtext adds a null terminator (#14).
