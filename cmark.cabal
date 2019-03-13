@@ -42,7 +42,7 @@ extra-source-files:  README.md
                      cbits/entities.inc
                      bench/sample.md
                      bench/full-sample.md
-cabal-version:       >=1.14
+cabal-version:       1.14
 
 Source-repository head
   type:              git
