@@ -105,4 +105,4 @@ Test-Suite test-cmark
   hs-source-dirs: test
   build-depends:  base, cmark, text, HUnit >= 1.2 && < 1.7
   ghc-options:    -Wall -fno-warn-unused-do-bind -threaded
-  default-language: Haskell98
+  default-language: Haskell2010

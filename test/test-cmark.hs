@@ -16,7 +16,7 @@ main = do
 -- Here we just make sure it's basically working.
 tests :: Test
 tests = TestList [
-    "<h1>Hi</h1>\n" ~=? commonmarkToHtml [] "# Hi"
+    "<h1>Hi</h1>\n<p><em>there</em></p>\n" ~=? commonmarkToHtml [] "# Hi\n\n*there*"
   , "<p>dog’s</p>\n" ~=? commonmarkToHtml [optSmart] "dog's"
   , "<p><a href=\"\">trick</a></p>\n" ~=? commonmarkToHtml [optSafe] "[trick](javascript:alert('hi'))"
   , ".RS\n.PP\nquote\n.RE\n" ~=? commonmarkToMan [] Nothing "> quote"
