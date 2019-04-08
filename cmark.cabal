@@ -1,12 +1,12 @@
 name:                cmark
-version:             0.5.6.3
+version:             0.6
 synopsis:            Fast, accurate CommonMark (Markdown) parser and renderer
 description:
   This package provides Haskell bindings for
   <https://github.com/jgm/cmark libcmark>, the reference
   parser for <http://commonmark.org CommonMark>, a fully
   specified variant of Markdown. It includes sources for
-  libcmark (0.28.0) and does not require prior installation of the
+  libcmark (0.29.0) and does not require prior installation of the
   C library.
 
 homepage:            https://github.com/jgm/cmark-hs
@@ -14,9 +14,8 @@ license:             BSD3
 license-file:        LICENSE
 author:              John MacFarlane
 maintainer:          jgm@berkeley.edu
-copyright:           (C) 2015--17 John MacFarlane
+copyright:           (C) 2015-17 John MacFarlane
 category:            Text
-tested-with:         GHC == 7.4.2, GHC == 7.6.3, GHC == 7.8.2, GHC == 7.10.3
 build-type:          Simple
 extra-source-files:  README.md
                      changelog

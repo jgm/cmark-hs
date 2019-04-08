@@ -17,6 +17,7 @@ module CMark (
   , optHardBreaks
   , optSmart
   , optSafe
+  , optUnsafe
   , Node(..)
   , NodeType(..)
   , PosInfo(..)
@@ -208,6 +209,11 @@ optSmart = CMarkOption #const CMARK_OPT_SMART
 -- and images.
 optSafe :: CMarkOption
 optSafe = CMarkOption #const CMARK_OPT_SAFE
+
+-- | Allow rendering of raw HTML and potentially dangerous URLs in links
+-- and images.
+optUnsafe :: CMarkOption
+optUnsafe = CMarkOption #const CMARK_OPT_UNSAFE
 
 ptrToNodeType :: NodePtr -> IO NodeType
 ptrToNodeType ptr = do
