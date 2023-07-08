@@ -86,19 +86,6 @@ library
                        cbits/xml.c
                        cbits/render.c
 
-benchmark bench-cmark
-  type:             exitcode-stdio-1.0
-  hs-source-dirs:   bench
-  main-is:          bench-cmark.hs
-  build-depends:    base, text, cmark, criterion,
-                    sundown >= 0.6 && < 0.7,
-                    cheapskate >= 0.1 && < 0.2,
-                    markdown >= 0.1 && < 0.2,
-                    discount >= 0.1 && < 0.2,
-                    blaze-html >= 0.7 && < 0.10
-  ghc-options:      -O2
-  default-language: Haskell2010
-
 Test-Suite test-cmark
   type:           exitcode-stdio-1.0
   main-is:        test-cmark.hs
