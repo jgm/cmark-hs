@@ -39,8 +39,6 @@ extra-source-files:  README.md
                      cbits/scanners.h
                      cbits/case_fold_switch.inc
                      cbits/entities.inc
-                     bench/sample.md
-                     bench/full-sample.md
 cabal-version:       1.14
 
 Source-repository head
