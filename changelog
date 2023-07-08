@@ -2,6 +2,7 @@ cmark 0.7 (08 Jul 2023)
 
   * Update to cmark 0.30.3.
   * Allow text 2.
+  * Remove benchmark suite.
 
 cmark 0.6 (08 Apr 2019)
 
