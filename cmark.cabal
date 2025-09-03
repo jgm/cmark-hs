@@ -42,7 +42,7 @@ cabal-version:       1.14
 
 Source-repository head
   type:              git
-  location:          git://github.com/jgm/cmark-hs.git
+  location:          https://github.com/jgm/cmark-hs.git
 
 flag pkgconfig
   default:     False
