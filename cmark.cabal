@@ -29,7 +29,6 @@ extra-source-files:  README.md
                      cbits/utf8.h
                      cbits/parser.h
                      cbits/cmark_version.h
-                     cbits/html_unescape.h
                      cbits/iterator.h
                      cbits/node.h
                      cbits/buffer.h
