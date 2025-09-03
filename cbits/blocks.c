@@ -5,13 +5,13 @@
  * see http://spec.commonmark.org/0.24/#phase-1-block-structure
  */
 
-#include <stdlib.h>
 #include <assert.h>
-#include <stdio.h>
 #include <limits.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "cmark_ctype.h"
-#include "config.h"
 #include "parser.h"
 #include "cmark.h"
 #include "node.h"
@@ -40,7 +40,7 @@ static bool S_last_line_checked(const cmark_node *node) {
   return (node->flags & CMARK_NODE__LAST_LINE_CHECKED) != 0;
 }
 
-static CMARK_INLINE cmark_node_type S_type(const cmark_node *node) {
+static inline cmark_node_type S_type(const cmark_node *node) {
   return (cmark_node_type)node->type;
 }
 
@@ -55,11 +55,11 @@ static void S_set_last_line_checked(cmark_node *node) {
   node->flags |= CMARK_NODE__LAST_LINE_CHECKED;
 }
 
-static CMARK_INLINE bool S_is_line_end_char(char c) {
+static inline bool S_is_line_end_char(char c) {
   return (c == '\n' || c == '\r');
 }
 
-static CMARK_INLINE bool S_is_space_or_tab(char c) {
+static inline bool S_is_space_or_tab(char c) {
   return (c == ' ' || c == '\t');
 }
 
@@ -90,19 +90,19 @@ static cmark_node *make_document(cmark_mem *mem) {
   return e;
 }
 
-cmark_parser *cmark_parser_new_with_mem(int options, cmark_mem *mem) {
+cmark_parser *cmark_parser_new_with_mem_into_root(int options, cmark_mem *mem, cmark_node *root) {
   cmark_parser *parser = (cmark_parser *)mem->calloc(1, sizeof(cmark_parser));
   parser->mem = mem;
-
-  cmark_node *document = make_document(mem);
 
   cmark_strbuf_init(mem, &parser->curline, 256);
   cmark_strbuf_init(mem, &parser->linebuf, 0);
   cmark_strbuf_init(mem, &parser->content, 0);
 
+  root->flags = CMARK_NODE__OPEN;
+
   parser->refmap = cmark_reference_map_new(mem);
-  parser->root = document;
-  parser->current = document;
+  parser->root = root;
+  parser->current = root;
   parser->line_number = 0;
   parser->offset = 0;
   parser->column = 0;
@@ -117,6 +117,11 @@ cmark_parser *cmark_parser_new_with_mem(int options, cmark_mem *mem) {
   parser->last_buffer_ended_with_cr = false;
 
   return parser;
+}
+
+cmark_parser *cmark_parser_new_with_mem(int options, cmark_mem *mem) {
+  cmark_node *document = make_document(mem);
+  return cmark_parser_new_with_mem_into_root(options, mem, document);
 }
 
 cmark_parser *cmark_parser_new(int options) {
@@ -155,21 +160,21 @@ static bool is_blank(cmark_strbuf *s, bufsize_t offset) {
   return true;
 }
 
-static CMARK_INLINE bool can_contain(cmark_node_type parent_type,
-                                     cmark_node_type child_type) {
+static inline bool can_contain(cmark_node_type parent_type,
+                               cmark_node_type child_type) {
   return (parent_type == CMARK_NODE_DOCUMENT ||
           parent_type == CMARK_NODE_BLOCK_QUOTE ||
           parent_type == CMARK_NODE_ITEM ||
           (parent_type == CMARK_NODE_LIST && child_type == CMARK_NODE_ITEM));
 }
 
-static CMARK_INLINE bool accepts_lines(cmark_node_type block_type) {
+static inline bool accepts_lines(cmark_node_type block_type) {
   return (block_type == CMARK_NODE_PARAGRAPH ||
           block_type == CMARK_NODE_HEADING ||
           block_type == CMARK_NODE_CODE_BLOCK);
 }
 
-static CMARK_INLINE bool contains_inlines(cmark_node_type block_type) {
+static inline bool contains_inlines(cmark_node_type block_type) {
   return (block_type == CMARK_NODE_PARAGRAPH ||
           block_type == CMARK_NODE_HEADING);
 }
@@ -576,7 +581,7 @@ static void S_parser_feed(cmark_parser *parser, const unsigned char *buffer,
   if (len > UINT_MAX - parser->total_size)
     parser->total_size = UINT_MAX;
   else
-    parser->total_size += len;
+    parser->total_size += (int)len;
 
   // Skip UTF-8 BOM if present; see #334
   if (parser->line_number == 0 && parser->column == 0 && len >= 3 &&
@@ -903,6 +908,31 @@ static cmark_node *check_open_blocks(cmark_parser *parser, cmark_chunk *input,
     case CMARK_NODE_BLOCK_QUOTE:
       if (!parse_block_quote_prefix(parser, input))
         goto done;
+      break;
+    case CMARK_NODE_LIST:
+      // Avoid quadratic behavior caused by iterating deeply nested lists
+      // for each blank line.
+      if (parser->blank) {
+        if (container->flags & CMARK_NODE__LIST_LAST_LINE_BLANK &&
+            parser->indent == 0) {
+          // Abort early if we encounter multiple blank lines. Returning
+          // NULL will cause S_process_line to skip the calls to
+          // open_new_blocks and add_text_to_container. open_new_blocks
+          // is a no-op for blank lines. add_text_to_container closes
+          // remaining open nodes, but since we have a second blank
+          // line, all open nodes have already been closed when the
+          // first blank line was processed. Certain block types accept
+          // empty lines as content, so add them here.
+          if (parser->current->type == CMARK_NODE_CODE_BLOCK ||
+              parser->current->type == CMARK_NODE_HTML_BLOCK) {
+            add_line(input, parser);
+          }
+          return NULL;
+        }
+        container->flags |= CMARK_NODE__LIST_LAST_LINE_BLANK;
+      } else {
+        container->flags &= ~CMARK_NODE__LIST_LAST_LINE_BLANK;
+      }
       break;
     case CMARK_NODE_ITEM:
       if (!parse_node_item_prefix(parser, input, container))

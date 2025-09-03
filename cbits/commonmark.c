@@ -1,10 +1,10 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdint.h>
 #include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "config.h"
 #include "cmark.h"
 #include "node.h"
 #include "buffer.h"
@@ -21,8 +21,8 @@
 
 // Functions to convert cmark_nodes to commonmark strings.
 
-static CMARK_INLINE void outc(cmark_renderer *renderer, cmark_escaping escape,
-                              int32_t c, unsigned char nextc) {
+static inline void outc(cmark_renderer *renderer, cmark_escaping escape,
+                        int32_t c, unsigned char nextc) {
   bool needs_escaping = false;
   bool follows_digit =
       renderer->buffer->size > 0 &&
@@ -35,7 +35,8 @@ static CMARK_INLINE void outc(cmark_renderer *renderer, cmark_escaping escape,
       ((escape == NORMAL &&
         (c < 0x20 ||
          c == '*' || c == '_' || c == '[' || c == ']' || c == '#' || c == '<' ||
-         c == '>' || c == '\\' || c == '`' || c == '!' ||
+         c == '>' || c == '\\' || c == '`' ||
+	 (c == '!' && (!nextc || nextc == '[')) ||
          (c == '&' && cmark_isalpha(nextc)) || (c == '!' && nextc == '[') ||
          ((CMARK_OPT_SMART & options) &&
             ((c == '-' && nextc == '-') ||
@@ -65,7 +66,7 @@ static CMARK_INLINE void outc(cmark_renderer *renderer, cmark_escaping escape,
     } else { // render as entity
       snprintf(encoded, ENCODED_SIZE, "&#%d;", c);
       cmark_strbuf_puts(renderer->buffer, encoded);
-      renderer->column += strlen(encoded);
+      renderer->column += (int)strlen(encoded);
     }
   } else {
     cmark_render_code_point(renderer, c);
@@ -228,7 +229,7 @@ static int S_render_node(cmark_renderer *renderer, cmark_node *node,
       snprintf(listmarker, LISTMARKER_SIZE, "%d%s%s", list_number,
                list_delim == CMARK_PAREN_DELIM ? ")" : ".",
                list_number < 10 ? "  " : " ");
-      marker_width = strlen(listmarker);
+      marker_width = (bufsize_t)strlen(listmarker);
     }
     if (entering) {
       if (cmark_node_get_list_type(node->parent) == CMARK_BULLET_LIST) {

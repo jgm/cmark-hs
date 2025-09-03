@@ -1,12 +1,12 @@
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "config.h"
 #include "node.h"
 
 static void S_node_unlink(cmark_node *node);
 
-static CMARK_INLINE bool S_is_block(cmark_node *node) {
+static inline bool S_is_block(cmark_node *node) {
   if (node == NULL) {
     return false;
   }
@@ -14,7 +14,7 @@ static CMARK_INLINE bool S_is_block(cmark_node *node) {
          node->type <= CMARK_NODE_LAST_BLOCK;
 }
 
-static CMARK_INLINE bool S_is_inline(cmark_node *node) {
+static inline bool S_is_inline(cmark_node *node) {
   if (node == NULL) {
     return false;
   }

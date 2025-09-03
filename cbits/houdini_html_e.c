@@ -4,6 +4,17 @@
 
 #include "houdini.h"
 
+#if !defined(__has_builtin)
+# define __has_builtin(b) 0
+#endif
+
+#if !__has_builtin(__builtin_expect)
+# define __builtin_expect(e, v) (e)
+#endif
+
+#define likely(e) __builtin_expect((e), 1)
+#define unlikely(e) __builtin_expect((e), 0)
+
 /**
  * According to the OWASP rules:
  *
@@ -32,7 +43,7 @@ static const char HTML_ESCAPE_TABLE[] = {
 static const char *HTML_ESCAPES[] = {"",      "&quot;", "&amp;", "&#39;",
                                      "&#47;", "&lt;",   "&gt;"};
 
-int houdini_escape_html0(cmark_strbuf *ob, const uint8_t *src, bufsize_t size,
+int houdini_escape_html(cmark_strbuf *ob, const uint8_t *src, bufsize_t size,
                          int secure) {
   bufsize_t i = 0, org, esc = 0;
 
@@ -59,8 +70,4 @@ int houdini_escape_html0(cmark_strbuf *ob, const uint8_t *src, bufsize_t size,
   }
 
   return 1;
-}
-
-int houdini_escape_html(cmark_strbuf *ob, const uint8_t *src, bufsize_t size) {
-  return houdini_escape_html0(ob, src, size, 1);
 }

@@ -6,7 +6,7 @@ description:
   <https://github.com/jgm/cmark libcmark>, the reference
   parser for <http://commonmark.org CommonMark>, a fully
   specified variant of Markdown. It includes sources for
-  libcmark (0.30.3) and does not require prior installation of the
+  libcmark (0.31.1) and does not require prior installation of the
   C library.
 
 homepage:            https://github.com/jgm/cmark-hs
@@ -35,9 +35,8 @@ extra-source-files:  README.md
                      cbits/buffer.h
                      cbits/render.h
                      cbits/cmark_ctype.h
-                     cbits/config.h
                      cbits/scanners.h
-                     cbits/case_fold_switch.inc
+                     cbits/case_fold.inc
                      cbits/entities.inc
 cabal-version:       1.14
 
